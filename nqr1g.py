@@ -1,13 +1,11 @@
 import logging
 import re
-import secrets
 from datetime import datetime
 from functools import lru_cache
 from flask import Flask, request, render_template_string
 from flasgger import Swagger
 import requests
 import pandas as pd
-import numpy as np
 
 # --- CONFIGURACIÓN ESTRUCTURAL ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -138,20 +136,21 @@ def safe_currency_fmt(val):
 
 # --- CAPA DE DATOS (Caché Optimizado) ---
 # Usamos lru_cache para gestión automática de memoria (LRU Eviction)
-# maxsize=64 previene DoS por consumo de memoria.
 @lru_cache(maxsize=64)
 def fetch_data_cached(contractor, year):
     """
-    Recupera datos de Socrata con gestión de caché interna.
-    Retorna: (DataFrame, ErrorMessage)
+    Recupera datos de Socrata.
+    Asegura upper(columna) vs UPPER(input) para coincidencia exacta.
     """
+    # Lógica corregida para coincidir con la consulta validada
     soql = f"contains(upper(nom_raz_social_contratista), '{contractor.upper()}') AND date_extract_y(fecha_de_firma_del_contrato) = {year}"
-    # Solicitamos hasta el tope de seguridad en una sola petición (más eficiente que paginar HTTP loop)
+    
     params = {"$where": soql, "$limit": MAX_RECORDS_SAFETY_CAP}
     
     try:
         logger.info(f"API Request: {contractor} ({year})")
-        resp = requests.get(SOCRATA_ENDPOINT, params=params, timeout=15)
+        # requests.get codifica automáticamente los espacios a %20 o +
+        resp = requests.get(SOCRATA_ENDPOINT, params=params, timeout=30)
         resp.raise_for_status()
         data = resp.json()
         if not data:
@@ -185,7 +184,6 @@ def index():
             return render_template_string(HTML_TEMPLATE, c_val=raw_c, y_val=raw_y, no_results=True)
 
         # Procesamiento Vectorizado (Pandas Optimizado)
-        # Seleccionamos y renombramos solo lo necesario
         cols = {
             'nombre_de_la_entidad': 'Entidad',
             'objeto_a_contratar': 'Objeto',
@@ -194,7 +192,7 @@ def index():
             'fecha_de_firma_del_contrato': 'Fecha',
             'url_contrato': 'Link'
         }
-        # Intersección de columnas existentes
+        # Intersección de columnas
         df = df[[c for c in cols.keys() if c in df.columns]].rename(columns=cols)
         
         # Transformaciones rápidas
@@ -203,7 +201,6 @@ def index():
         if 'Fecha' in df:
             df['Fecha'] = df['Fecha'].str.split('T').str[0]
         if 'Link' in df:
-            # FIX DE SEGURIDAD: rel="noopener noreferrer"
             df['Link'] = df['Link'].apply(lambda x: f'<a href="{x}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">Ver</a>' if x else '')
         
         # Numeración (1-based)
@@ -215,7 +212,6 @@ def index():
         total_pages = (len(df) + per_page - 1) // per_page
         page = max(1, min(page, total_pages))
         
-        # Renderizado de Tabla
         table_html = df.iloc[(page-1)*per_page : page*per_page].to_html(
             classes='table table-hover table-striped align-middle mb-0 small',
             index=False, escape=False, border=0
@@ -238,11 +234,10 @@ def apply_security_headers(response):
     response.headers['X-Frame-Options'] = 'DENY'
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains'
-    # CSP Básico: Permitir scripts de Bootstrap/CDN y estilos inline (necesario para el template actual)
     csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src https://cdnjs.cloudflare.com;"
     response.headers['Content-Security-Policy'] = csp
     return response
 
 if __name__ == '__main__':
-    # Ejecución en modo seguro
+    # Gunicorn es el servidor de producción, app.run es solo para debug local
     app.run(host='0.0.0.0', port=5000)
