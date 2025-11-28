@@ -6,9 +6,6 @@ FROM python:3.9-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Crear usuario no-root (Seguridad)
-RUN groupadd -r appuser && useradd -r -g appuser appuser
-
 # Directorio de trabajo
 WORKDIR /app
 
@@ -25,11 +22,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copiar el código fuente correcto
 COPY nqr1g.py .
 
-# Permisos
-RUN chown -R appuser:appuser /app
-
-# Cambio de usuario
-USER appuser
+# Let Podman remap your host UID/GID into the container
+USER 1000:1000 
 
 # Puerto
 EXPOSE 5000
