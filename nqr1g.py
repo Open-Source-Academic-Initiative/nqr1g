@@ -101,7 +101,7 @@ HTML_TEMPLATE = """
         {% endif %}
         
         <div class="text-center mt-4 text-muted small">
-            <a href="https://opensai.org/" target="_blank" rel="noopener noreferrer" class="text-muted text-decoration-none">&copy; 2025 OpenSAI.</a>
+            <a href="https://opensai.org/" target="_blank" rel="noopener noreferrer" class="text-muted text-decoration-none">&copy; 2026 OpenSAI.</a>
         </div>
     </div>
 </body>
