@@ -1,7 +1,7 @@
 """
-OpenSAI - Microservicio de Consulta Unificada SECOP (I y II)
-Versión: 2.4 (Producción + Campo Fuente)
-Fecha: Enero 2026
+OpenSAI - SECOP Unified Query Microservice (I and II)
+Version: 2.4 (Production + Source Field)
+Date: January 2026
 """
 
 import logging
@@ -18,19 +18,19 @@ from urllib3.util.retry import Retry
 import pandas as pd
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-# --- CONFIGURACIÓN E INICIALIZACIÓN ---
+# --- CONFIGURATION AND INITIALIZATION ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
 logger = logging.getLogger("OpenSAI")
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
-# Credenciales y Constantes
+# Credentials and Constants
 SOCRATA_APP_TOKEN = os.getenv("SOCRATA_APP_TOKEN", None) 
 TIMEOUT_SECONDS = 60
 MAX_WORKERS = 2
 
-# Datasets Oficiales
+# Official Datasets
 SOURCES = {
     "SECOP_I": {
         "id": "rpmr-utcd",
@@ -58,7 +58,7 @@ SOURCES = {
     }
 }
 
-# --- GESTIÓN DE CONEXIONES ---
+# --- CONNECTION MANAGEMENT ---
 def get_session():
     session = requests.Session()
     retry_strategy = Retry(
@@ -81,7 +81,7 @@ http_session = get_session()
 def inject_global_vars():
     return {'current_year': datetime.now().year}
 
-# --- LÓGICA DE NEGOCIO ---
+# --- BUSINESS LOGIC ---
 def validate_input(contractor: str, year: str) -> tuple[str, int]:
     if not contractor or len(contractor) < 3:
         raise ValueError("Ingrese al menos 3 caracteres.")
@@ -151,7 +151,7 @@ def fetch_unified_data(contractor: str, year: int):
     final_df = pd.concat(results, ignore_index=True)
     return final_df, None
 
-# --- CONTROLADOR ---
+# --- CONTROLLER ---
 @app.route('/')
 def index():
     raw_c = request.args.get('contratista', '').strip()
@@ -170,20 +170,20 @@ def index():
         if df.empty:
             return render_template('index.html', no_results=True, c_val=raw_c, y_val=raw_y)
 
-        # --- LIMPIEZA DE DUPLICADOS (INTEGRIDAD) ---
+        # --- DUPLICATE CLEANUP (INTEGRITY) ---
         if 'id_contrato' in df.columns:
-            # .copy() aquí podría ayudar, pero el warning salta más abajo
+            # .copy() could help here, but the warning triggers further down
             df['id_contrato'] = df['id_contrato'].astype(str).str.strip()
             df = df.drop_duplicates(subset=['id_contrato'], keep='first')
         else:
             df = df.drop_duplicates()
         # -------------------------------------------
 
-        # --- CORRECCIÓN PANDAS WARNING: CREAR COPIA EXPLICITA ---
+        # --- PANDAS WARNING FIX: CREATE EXPLICIT COPY ---
         df = df.copy() 
         # --------------------------------------------------------
 
-        # --- PROCESAMIENTO DE PRESENTACIÓN ---
+        # --- PRESENTATION PROCESSING ---
         if 'valor' in df.columns:
             df['valor'] = pd.to_numeric(df['valor'], errors='coerce').fillna(0)
             df['Valor (COP)'] = df['valor'].apply(lambda x: f"${x:,.0f}".replace(",", "."))
@@ -199,10 +199,10 @@ def index():
                 lambda x: f'<a href="{x}" target="_blank" class="btn btn-sm btn-outline-primary">Ver</a>' if x else ''
             )
             
-        # --- DEFINICIÓN EXACTA DE COLUMNAS A MOSTRAR ---
-        # AQUI AGREGAMOS 'Origen' -> 'Fuente'
+        # --- EXACT DEFINITION OF COLUMNS TO DISPLAY ---
+        # HERE WE ADD 'Origen' -> 'Fuente'
         cols_display = {
-            'Origen': 'Fuente', # <--- NUEVO CAMPO SOLICITADO
+            'Origen': 'Fuente', # <--- NEW REQUESTED FIELD
             'entidad': 'Entidad',
             'objeto': 'Objeto',
             'Valor (COP)': 'Valor (COP)',
@@ -220,7 +220,7 @@ def index():
 
         df_view.insert(0, 'No.', range(1, len(df_view) + 1))
 
-        # --- PAGINACIÓN ---
+        # --- PAGINATION ---
         try:
             page = int(request.args.get('page', 1))
         except ValueError:
@@ -233,7 +233,7 @@ def index():
         
         df_page = df_view.iloc[(page-1)*per_page : page*per_page]
 
-        # Delegamos el estilo al CSS (sin clase text-center aquí)
+        # Delegate styling to CSS (no text-center class here)
         table_html = df_page.to_html(
             classes='table table-hover table-striped align-middle mb-0 small', 
             index=False, 
