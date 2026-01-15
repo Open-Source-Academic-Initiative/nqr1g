@@ -1,6 +1,6 @@
 """
 OpenSAI - SECOP Unified Query Microservice (I and II)
-Version: 2.4 (Production + Source Field)
+Version: 2.4.1 (Production + Source Field)
 Date: January 2026
 """
 
