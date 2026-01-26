@@ -170,19 +170,6 @@ def index():
         if df.empty:
             return render_template('index.html', no_results=True, c_val=raw_c, y_val=raw_y)
 
-        # --- DUPLICATE CLEANUP (INTEGRITY) ---
-        if 'id_contrato' in df.columns:
-            # .copy() could help here, but the warning triggers further down
-            df['id_contrato'] = df['id_contrato'].astype(str).str.strip()
-            df = df.drop_duplicates(subset=['id_contrato'], keep='first')
-        else:
-            df = df.drop_duplicates()
-        # -------------------------------------------
-
-        # --- PANDAS WARNING FIX: CREATE EXPLICIT COPY ---
-        df = df.copy() 
-        # --------------------------------------------------------
-
         # --- PRESENTATION PROCESSING ---
         if 'valor' in df.columns:
             df['valor'] = pd.to_numeric(df['valor'], errors='coerce').fillna(0)
