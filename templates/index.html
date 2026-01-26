@@ -24,12 +24,16 @@
         .table th, .table td {
             text-align: center !important;
             vertical-align: middle !important;
+            padding: 12px 8px;
         }
 
         /* Encabezados siempre con fondo suave */
         .table thead th {
             background-color: #f1f3f5;
             white-space: nowrap;
+            font-weight: 600;
+            color: #2c3e50;
+            border-bottom: 2px solid #dee2e6;
         }
 
         /* --- REGLA ESPECÍFICA PARA LA COLUMNA OBJETO --- */
@@ -37,26 +41,86 @@
            NUEVO ORDEN DE COLUMNAS:
            1. No.
            2. Fuente
-           3. ID Proceso (Nueva)
+           3. ID Proceso
            4. Entidad
-           5. Objeto (AQUÍ APLICAMOS JUSTIFICADO)
+           5. Objeto (COLUMNA PRINCIPAL - MAXIMIZADA)
            6. Valor
            7. Contratista
            8. Fecha
            9. Enlace
         */
-        .table th:nth-child(5), .table td:nth-child(5) {
-            text-align: justify !important; 
-            min-width: 350px; 
+        .table th:nth-child(5) {
+            text-align: center !important;
+        }
+
+        .table td:nth-child(5) {
+            text-align: justify !important;
+            text-justify: inter-word;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            min-width: 450px;
+            max-width: none;
             white-space: normal;
-            padding: 10px 15px;
+            padding: 14px 18px;
+            line-height: 1.6;
+            font-size: 0.95em;
+            color: #2c3e50;
         }
         
         /* Ajustes menores para otras columnas */
-        .table td:nth-child(1) { width: 40px; font-weight: bold; } /* No. */
-        .table td:nth-child(2) { white-space: nowrap; font-weight: 500; color: #495057; } /* Fuente */
-        .table td:nth-child(3) { white-space: nowrap; font-family: 'Courier New', monospace; font-size: 0.9em; } /* ID Proceso */
-        .table td:nth-child(9) { width: 80px; } /* Enlace */
+        .table td:nth-child(1) { 
+            width: 45px; 
+            font-weight: bold;
+            color: #2574af;
+        } /* No. */
+
+        .table td:nth-child(2) { 
+            white-space: nowrap; 
+            font-weight: 600; 
+            color: #2574af;
+            font-size: 0.92em;
+        } /* Fuente */
+
+        .table td:nth-child(3) { 
+            white-space: nowrap; 
+            font-family: 'Courier New', monospace; 
+            font-size: 0.85em;
+            color: #555;
+            letter-spacing: 0.5px;
+        } /* ID Proceso */
+
+        .table td:nth-child(4) { 
+            min-width: 180px;
+            white-space: normal;
+            padding: 12px 10px;
+        } /* Entidad */
+
+        .table td:nth-child(6) { 
+            white-space: nowrap;
+            font-weight: 600;
+            color: #27ae60;
+        } /* Valor */
+
+        .table td:nth-child(7) { 
+            min-width: 150px;
+            white-space: normal;
+            padding: 12px 10px;
+        } /* Contratista */
+
+        .table td:nth-child(8) { 
+            white-space: nowrap;
+            color: #7f8c8d;
+            font-size: 0.9em;
+        } /* Fecha */
+
+        .table td:nth-child(9) { 
+            width: 90px;
+        } /* Enlace */
+
+        /* Efecto hover para mejor interactividad */
+        .table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
         
     </style>
 </head>
