@@ -36,15 +36,16 @@
         /* 
            NUEVO ORDEN DE COLUMNAS:
            1. No.
-           2. Fuente (Nueva)
-           3. Entidad
-           4. Objeto (AQUÍ APLICAMOS JUSTIFICADO)
-           5. Valor
-           6. Contratista
-           7. Fecha
-           8. Enlace
+           2. Fuente
+           3. ID Proceso (Nueva)
+           4. Entidad
+           5. Objeto (AQUÍ APLICAMOS JUSTIFICADO)
+           6. Valor
+           7. Contratista
+           8. Fecha
+           9. Enlace
         */
-        .table th:nth-child(4), .table td:nth-child(4) {
+        .table th:nth-child(5), .table td:nth-child(5) {
             text-align: justify !important; 
             min-width: 350px; 
             white-space: normal;
@@ -54,7 +55,8 @@
         /* Ajustes menores para otras columnas */
         .table td:nth-child(1) { width: 40px; font-weight: bold; } /* No. */
         .table td:nth-child(2) { white-space: nowrap; font-weight: 500; color: #495057; } /* Fuente */
-        .table td:nth-child(8) { width: 80px; } /* Enlace */
+        .table td:nth-child(3) { white-space: nowrap; font-family: 'Courier New', monospace; font-size: 0.9em; } /* ID Proceso */
+        .table td:nth-child(9) { width: 80px; } /* Enlace */
         
     </style>
 </head>

@@ -187,9 +187,10 @@ def index():
             )
             
         # --- EXACT DEFINITION OF COLUMNS TO DISPLAY ---
-        # HERE WE ADD 'Origen' -> 'Fuente'
+        # HERE WE ADD 'Origen' -> 'Fuente' AND 'id_contrato' -> 'ID Proceso'
         cols_display = {
-            'Origen': 'Fuente', # <--- NEW REQUESTED FIELD
+            'Origen': 'Fuente',
+            'id_contrato': 'ID Proceso',
             'entidad': 'Entidad',
             'objeto': 'Objeto',
             'Valor (COP)': 'Valor (COP)',
