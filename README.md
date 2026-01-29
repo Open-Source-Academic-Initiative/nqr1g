@@ -3,7 +3,7 @@ Cliente de consulta contratación publica
 
 ## Deployment in local
 ```bash
-docker build -t socrata-nqr1g-api
+docker build -t socrata-nqr1g-api .
 docker run -d -p 5000:5000 --name contenedor-nqr1g socrata-nq1g-api
 ```
 ## Run app using podman
