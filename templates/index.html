@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Consulta de contratación pública SECOP integrada con datos.gov.co">
+    <title>Buscador de Contratos - OpenSAI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .header-banner { background-color: #2574af; color: white; padding: 2rem 0; margin-bottom: 2rem; border-bottom: 4px solid #1a5c8e; }
+        .btn-primary { background-color: #2574af; border-color: #2574af; }
+        .btn-primary:hover { background-color: #1a5c8e; }
+        
+        .table-responsive { 
+            box-shadow: 0 0 10px rgba(0,0,0,0.05); 
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+
+        /* --- ESTILOS DE ALINEACIÓN DE TABLA --- */
+        /* Por defecto: Encabezados y Celdas Centrados Vertical y Horizontalmente */
+        .table th, .table td {
+            text-align: center !important;
+            vertical-align: middle !important;
+            padding: 12px 8px;
+        }
+
+        /* Encabezados siempre con fondo suave */
+        .table thead th {
+            background-color: #f1f3f5;
+            white-space: nowrap;
+            font-weight: 600;
+            color: #2c3e50;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        /* --- REGLA ESPECÍFICA PARA LA COLUMNA OBJETO --- */
+        /* 
+           NUEVO ORDEN DE COLUMNAS:
+           1. No.
+           2. Fuente
+           3. ID Proceso
+           4. Entidad
+           5. Objeto (COLUMNA PRINCIPAL - MAXIMIZADA)
+           6. Valor
+           7. Contratista
+           8. Fecha
+           9. Enlace
+        */
+        .table th:nth-child(5) {
+            text-align: center !important;
+        }
+
+        .table td:nth-child(5) {
+            text-align: justify !important;
+            text-justify: inter-word;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            min-width: 450px;
+            max-width: none;
+            white-space: normal;
+            padding: 14px 18px;
+            line-height: 1.6;
+            font-size: 0.95em;
+            color: #2c3e50;
+        }
+        
+        /* Ajustes menores para otras columnas */
+        .table td:nth-child(1) { 
+            width: 45px; 
+            font-weight: bold;
+            color: #2574af;
+        } /* No. */
+
+        .table td:nth-child(2) { 
+            white-space: nowrap; 
+            font-weight: 600; 
+            color: #2574af;
+            font-size: 0.92em;
+        } /* Fuente */
+
+        .table td:nth-child(3) { 
+            white-space: nowrap; 
+            font-family: 'Courier New', monospace; 
+            font-size: 0.85em;
+            color: #555;
+            letter-spacing: 0.5px;
+        } /* ID Proceso */
+
+        .table td:nth-child(4) { 
+            min-width: 180px;
+            white-space: normal;
+            padding: 12px 10px;
+        } /* Entidad */
+
+        .table td:nth-child(6) { 
+            white-space: nowrap;
+            font-weight: 600;
+            color: #27ae60;
+        } /* Valor */
+
+        .table td:nth-child(7) { 
+            min-width: 150px;
+            white-space: normal;
+            padding: 12px 10px;
+        } /* Contratista */
+
+        .table td:nth-child(8) { 
+            white-space: nowrap;
+            color: #7f8c8d;
+            font-size: 0.9em;
+        } /* Fecha */
+
+        .table td:nth-child(9) { 
+            width: 90px;
+        } /* Enlace */
+
+        /* Efecto hover para mejor interactividad */
+        .table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+    </style>
+</head>
+<body>
+    <header class="header-banner text-center">
+        <div class="container">
+            <h1><i class="fas fa-file-contract"></i> Consulta de Contratación SECOP</h1>
+            <p class="lead">Búsqueda en tiempo real sobre datos.gov.co</p>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body">
+                <form action="/" method="GET" class="row g-3">
+                    <div class="col-md-6">
+                        <label for="contratista" class="form-label fw-bold">Contratista</label>
+                        <input type="text" id="contratista" class="form-control" name="contratista" value="{{ c_val }}" placeholder="Ej. OpenSAI" required>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="anio" class="form-label fw-bold">Año</label>
+                        <input type="number" id="anio" class="form-control" name="anio" value="{{ y_val }}" min="2000" max="2030" required>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100 fw-bold"><i class="fas fa-search"></i> Buscar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-danger" role="alert">
+            <i class="fas fa-exclamation-triangle"></i> {{ error }}
+        </div>
+        {% endif %}
+
+        {% if no_results %}
+        <div class="alert alert-info" role="alert">
+            <i class="fas fa-info-circle"></i> No se encontraron resultados para la búsqueda solicitada.
+        </div>
+        {% endif %}
+
+        {% if table %}
+        <div class="card shadow-sm border-0 animate__animated animate__fadeIn">
+            <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+                <span>Resultados de la búsqueda</span>
+                <span class="badge bg-secondary">{{ count }} encontrados</span>
+            </div>
+            
+            <div class="card-body p-0 table-responsive">
+                {{ table|safe }}
+            </div>
+
+            {% if pages > 1 %}
+            <div class="card-footer bg-white py-3">
+                <nav aria-label="Navegación de resultados">
+                    <ul class="pagination justify-content-center mb-0">
+                        <li class="page-item {% if curr_page <= 1 %}disabled{% endif %}">
+                            <a class="page-link" href="/?contratista={{ c_val }}&anio={{ y_val }}&page={{ curr_page-1 }}">Anterior</a>
+                        </li>
+                        <li class="page-item disabled"><span class="page-link">Página {{ curr_page }} de {{ pages }}</span></li>
+                        <li class="page-item {% if curr_page >= pages %}disabled{% endif %}">
+                            <a class="page-link" href="/?contratista={{ c_val }}&anio={{ y_val }}&page={{ curr_page+1 }}">Siguiente</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </main>
+        
+    <footer class="text-center mt-4 text-muted small py-3">
+        <a href="https://opensai.org/" target="_blank" rel="noopener noreferrer" class="text-muted text-decoration-none">&copy; {{ current_year }} OpenSAI.</a>
+    </footer>
+</body>
+</html>

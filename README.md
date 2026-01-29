@@ -24,6 +24,10 @@ CentOS/RHEL like systems:
 ```
 sudo dnf install podman
 ```
+To build the container named **nqr1g** using the local Dockerfile in the current directory:
+```
+podman build -t nqr1g .
+```
 To stop the container:
 ```
 podman stop nqr1g

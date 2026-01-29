@@ -1,214 +1,259 @@
-import logging
-import re
-from datetime import datetime
-from flask import Flask, request, render_template_string
-from flasgger import Swagger
-import requests
-import pandas as pd
-import numpy as np
-
-# Configuración de Logging (ISO 27001 - Trazabilidad)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-app = Flask(__name__)
-
-# Configuración de Swagger
-app.config['SWAGGER'] = {
-    'title': 'Consulta Interactiva SECOP',
-    'uiversion': 3,
-    'description': 'Interfaz para consultar contratos públicos en datos.gov.co',
-    'specs_route': '/apidocs/'
-}
-swagger = Swagger(app)
-
-# URL del Endpoint de Datos Abiertos (Socrata)
-SOCRATA_ENDPOINT = "https://www.datos.gov.co/resource/rpmr-utcd.json"
-
-# Plantilla HTML Responsiva (Bootstrap 5 + Jinja2)
-HTML_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Buscador de Contratos Públicos</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        body { background-color: #f8f9fa; }
-        .header-banner { 
-            background-color: #2574af; 
-            color: white; 
-            padding: 2rem 0; 
-            margin-bottom: 2rem; 
-            border-bottom: 4px solid #1a5c8e; 
-        }
-        .search-card { box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; }
-        .table-card { box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: none; margin-top: 2rem; }
-        .footer { margin-top: 3rem; color: #6c757d; font-size: 0.9rem; }
-        .text-right { text-align: right; }
-    </style>
-</head>
-<body>
-
-    <div class="header-banner text-center">
-        <div class="container">
-            <h1><i class="fas fa-file-contract"></i> Consulta de Contratación SECOP</h1>
-            <p class="lead">Búsqueda en tiempo real sobre datos.gov.co</p>
-        </div>
-    </div>
-
-    <div class="container">
-        <div class="card search-card">
-            <div class="card-body">
-                <form action="/" method="GET" class="row g-3 needs-validation">
-                    <div class="col-md-6">
-                        <label for="contratista" class="form-label fw-bold">Nombre Contratista</label>
-                        <input type="text" class="form-control" id="contratista" name="contratista" 
-                               placeholder="Ej. OpenSAI" value="{{ contractor_val }}" required>
-                    </div>
-                    <div class="col-md-4">
-                        <label for="anio" class="form-label fw-bold">Año de Firma</label>
-                        <input type="number" class="form-control" id="anio" name="anio" 
-                               placeholder="Ej. 2025" value="{{ year_val }}" min="2000" max="2030" required>
-                    </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary w-100 fw-bold" style="background-color: #2574af; border-color: #2574af;">
-                            <i class="fas fa-search"></i> Consultar
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        {% if error_msg %}
-        <div class="alert alert-danger mt-4" role="alert">
-            <i class="fas fa-exclamation-triangle"></i> {{ error_msg }}
-        </div>
-        {% endif %}
-
-        {% if table_html %}
-        <div class="card table-card animate__animated animate__fadeIn">
-            <div class="card-header bg-white fw-bold border-bottom">
-                Resultados de la Búsqueda
-                <span class="badge bg-secondary float-end">{{ count }} registros encontrados</span>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    {{ table_html|safe }}
-                </div>
-            </div>
-        </div>
-        {% elif show_no_results %}
-        <div class="alert alert-info mt-4" role="alert">
-            <i class="fas fa-info-circle"></i> No se encontraron contratos.
-        </div>
-        {% endif %}
-
-        <div class="footer text-center pb-4">
-            <a href="https://opensai.org/" target="_blank">OpenSAI</a>
-        </div>
-    </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+"""
+OpenSAI - SECOP Unified Query Microservice (I and II)
+Version: 2.4.1 (Production + Source Field)
+Date: January 2026
 """
 
-def validate_input(contractor, year):
-    if not contractor or not isinstance(contractor, str):
-        raise ValueError("El nombre del contratista es requerido.")
-    clean_contractor = re.sub(r'[^a-zA-Z0-9\s\.\-]', '', contractor).strip()
-    if len(clean_contractor) < 3:
-        raise ValueError("El nombre debe tener al menos 3 caracteres.")
-    try:
-        year_int = int(year)
-        current_year = datetime.now().year
-        if year_int < 2000 or year_int > current_year + 2:
-            raise ValueError("Año fuera de rango válido.")
-    except ValueError:
-        raise ValueError("El año debe ser un número válido.")
-    return clean_contractor, year_int
+import logging
+import os
+import re
+import concurrent.futures
+from datetime import datetime
+from functools import lru_cache
 
-def format_cop_currency(value):
-    try:
-        if pd.isna(value) or value == '':
-            return "$ 0"
-        val_float = float(value)
-        formatted = "{:,.0f}".format(val_float)
-        formatted = formatted.replace(",", ".")
-        return f"$ {formatted}"
-    except (ValueError, TypeError):
-        return "$ 0"
+from flask import Flask, request, render_template
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import pandas as pd
+from werkzeug.middleware.proxy_fix import ProxyFix
 
-@app.route('/', methods=['GET'])
-def index():
-    raw_contractor = request.args.get('contratista', '')
-    raw_year = request.args.get('anio', '')
+# --- CONFIGURATION AND INITIALIZATION ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(name)s: %(message)s')
+logger = logging.getLogger("OpenSAI")
+
+app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+
+# Credentials and Constants
+SOCRATA_APP_TOKEN = os.getenv("SOCRATA_APP_TOKEN", None) 
+TIMEOUT_SECONDS = 60
+MAX_WORKERS = 2
+
+# Official Datasets
+SOURCES = {
+    "SECOP_I": {
+        "id": "rpmr-utcd",
+        "cols": {
+            "id_contrato": "numero_del_contrato",
+            "entidad": "nombre_de_la_entidad",
+            "objeto": "objeto_a_contratar",
+            "valor": "valor_contrato",
+            "contratista": "nom_raz_social_contratista",
+            "fecha": "fecha_de_firma_del_contrato",
+            "url": "url_contrato"
+        }
+    },
+    "SECOP_II": {
+        "id": "jbjy-vk9h",
+        "cols": {
+            "id_contrato": "referencia_del_contrato",
+            "entidad": "nombre_entidad",
+            "objeto": "objeto_del_contrato",
+            "valor": "valor_del_contrato",
+            "contratista": "proveedor_adjudicado", 
+            "fecha": "fecha_de_firma",
+            "url": "urlproceso"
+        }
+    }
+}
+
+# --- CONNECTION MANAGEMENT ---
+def get_session():
+    session = requests.Session()
+    retry_strategy = Retry(
+        total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504]
+    )
+    adapter = HTTPAdapter(pool_connections=10, pool_maxsize=10, max_retries=retry_strategy)
+    session.mount("https://", adapter)
     
-    if not raw_contractor and not raw_year:
-        return render_template_string(HTML_TEMPLATE, contractor_val="", year_val="", table_html=None, error_msg=None)
+    headers = {"User-Agent": "OpenSAI-Bot/2.1", "Accept": "application/json"}
+    if SOCRATA_APP_TOKEN:
+        headers["X-App-Token"] = SOCRATA_APP_TOKEN
+    
+    session.headers.update(headers)
+    return session
+
+http_session = get_session()
+
+# --- CONTEXT PROCESSOR ---
+@app.context_processor
+def inject_global_vars():
+    return {'current_year': datetime.now().year}
+
+# --- BUSINESS LOGIC ---
+def validate_input(contractor: str, year: str) -> tuple[str, int]:
+    if not contractor or len(contractor) < 3:
+        raise ValueError("Ingrese al menos 3 caracteres.")
+    clean_c = re.sub(r'[^a-zA-Z0-9\sñÑáéíóúÁÉÍÓÚ\.]', '', contractor).strip()
+    try:
+        y_int = int(year)
+        if not (2000 <= y_int <= datetime.now().year + 1):
+            raise ValueError("Año fuera de rango.")
+    except ValueError:
+        raise ValueError("Año inválido.")
+    return clean_c, y_int
+
+def query_source(source_name: str, config: dict, contractor: str, year: int) -> pd.DataFrame:
+    endpoint = f"https://www.datos.gov.co/resource/{config['id']}.json"
+    col_map = config['cols']
+    
+    select_clause = ",".join(col_map.values())
+    where_clause = (
+        f"contains(upper({col_map['contratista']}), '{contractor.upper()}') "
+        f"AND date_extract_y({col_map['fecha']}) = {year}"
+    )
+    
+    params = {
+        "$select": select_clause,
+        "$where": where_clause,
+        "$limit": 1000, 
+        "$order": f"{col_map['fecha']} DESC"
+    }
 
     try:
-        contractor, year = validate_input(raw_contractor, raw_year)
-        soql_query = f"contains(upper(nom_raz_social_contratista), '{contractor.upper()}') AND date_extract_y(fecha_de_firma_del_contrato) = {year}"
-        params = {"$where": soql_query, "$limit": 50} 
-
-        logger.info(f"Consultando: {contractor}, {year}")
-        response = requests.get(SOCRATA_ENDPOINT, params=params, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+        resp = http_session.get(endpoint, params=params, timeout=TIMEOUT_SECONDS)
+        resp.raise_for_status()
+        data = resp.json()
         
-        table_html = ""
-        show_no_results = True
-        count = 0
-        
-        if data:
-            df = pd.DataFrame(data)
-            count = len(df)
-            cols_map = {
-                'nombre_de_la_entidad': 'Entidad',
-                'objeto_a_contratar': 'Objeto del Contrato',
-                'valor_contrato': 'Valor (COP)',
-                'nom_raz_social_contratista': 'Contratista',
-                'fecha_de_firma_del_contrato': 'Fecha Firma',
-                'url_contrato': 'Enlace'
-            }
-            available_cols = [c for c in cols_map.keys() if c in df.columns]
-            df_display = df[available_cols].rename(columns=cols_map)
+        if not data:
+            return pd.DataFrame()
             
-            if 'Valor (COP)' in df_display.columns:
-                df_display['Valor (COP)'] = df_display['Valor (COP)'].apply(format_cop_currency)
+        df = pd.DataFrame(data)
+        inv_map = {v: k for k, v in col_map.items()}
+        df = df.rename(columns=inv_map)
+        df['Origen'] = source_name.replace('_', ' ')
+        return df
+    except Exception as e:
+        logger.error(f"Error {source_name}: {e}")
+        return pd.DataFrame()
 
-            if 'Enlace' in df_display.columns:
-                df_display['Enlace'] = df_display['Enlace'].apply(lambda x: f'<a href="{x}" target="_blank" class="btn btn-sm btn-outline-primary">Ver</a>' if x else '')
+@lru_cache(maxsize=64)
+def fetch_unified_data(contractor: str, year: int):
+    futures = []
+    results = []
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        for name, conf in SOURCES.items():
+            futures.append(executor.submit(query_source, name, conf, contractor, year))
+        
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                res = future.result()
+                if not res.empty:
+                    results.append(res)
+            except Exception as e:
+                logger.error(e)
 
-            if 'Fecha Firma' in df_display.columns:
-                df_display['Fecha Firma'] = df_display['Fecha Firma'].astype(str).str.split('T').str[0]
+    if not results:
+        return pd.DataFrame(), "No se pudo establecer conexión con los servicios de datos.gov.co. Intente más tarde."
+        
+    final_df = pd.concat(results, ignore_index=True)
+    return final_df, None
 
-            table_html = df_display.to_html(
-                classes='table table-hover table-striped align-middle mb-0',
-                index=False, escape=False, border=0, justify='left'
+# --- CONTROLLER ---
+@app.route('/')
+def index():
+    raw_c = request.args.get('contratista', '').strip()
+    raw_y = request.args.get('anio', str(datetime.now().year)).strip()
+    
+    if not raw_c:
+        return render_template('index.html', c_val="", y_val=raw_y, table=None)
+
+    try:
+        c_clean, y_clean = validate_input(raw_c, raw_y)
+        df, error = fetch_unified_data(c_clean, y_clean)
+        
+        if error:
+             return render_template('index.html', error=error, c_val=raw_c, y_val=raw_y)
+        
+        if df.empty:
+            return render_template('index.html', no_results=True, c_val=raw_c, y_val=raw_y)
+
+        # --- PRESENTATION PROCESSING ---
+        if 'valor' in df.columns:
+            df['valor'] = pd.to_numeric(df['valor'], errors='coerce').fillna(0)
+            df['Valor (COP)'] = df['valor'].apply(lambda x: f"${x:,.0f}".replace(",", "."))
+            
+        if 'url' in df.columns:
+            def extract_clean_url(val):
+                if isinstance(val, dict):
+                    return val.get('url', '')
+                return str(val) if val else ''
+
+            df['url'] = df['url'].apply(extract_clean_url)
+            df['Link'] = df['url'].apply(
+                lambda x: f'<a href="{x}" target="_blank" class="btn btn-sm btn-outline-primary">Ver</a>' if x else ''
             )
-            show_no_results = False
+            
+        # --- EXACT DEFINITION OF COLUMNS TO DISPLAY ---
+        # HERE WE ADD 'Origen' -> 'Fuente' AND 'id_contrato' -> 'ID Proceso'
+        cols_display = {
+            'Origen': 'Fuente',
+            'id_contrato': 'ID Proceso',
+            'entidad': 'Entidad',
+            'objeto': 'Objeto',
+            'Valor (COP)': 'Valor (COP)',
+            'contratista': 'Contratista',
+            'fecha': 'Fecha',
+            'Link': 'Enlace'
+        }
+        
+        valid_cols = [c for c in cols_display.keys() if c in df.columns]
+        df_view = df[valid_cols].rename(columns=cols_display)
+        
+        if 'Fecha' in df_view.columns:
+            df_view = df_view.sort_values(by='Fecha', ascending=False)
+            df_view['Fecha'] = df_view['Fecha'].str.split('T').str[0]
 
-        return render_template_string(
-            HTML_TEMPLATE, contractor_val=raw_contractor, year_val=raw_year, 
-            table_html=table_html, show_no_results=show_no_results, error_msg=None, count=count
+        df_view.insert(0, 'No.', range(1, len(df_view) + 1))
+
+        # --- PAGINATION ---
+        try:
+            page = int(request.args.get('page', 1))
+        except ValueError:
+            page = 1
+            
+        per_page = 50
+        count = len(df_view)
+        total_pages = (count + per_page - 1) // per_page
+        page = max(1, min(page, total_pages)) if total_pages > 0 else 1
+        
+        df_page = df_view.iloc[(page-1)*per_page : page*per_page]
+
+        # Delegate styling to CSS (no text-center class here)
+        table_html = df_page.to_html(
+            classes='table table-hover table-striped align-middle mb-0 small', 
+            index=False, 
+            escape=False,
+            border=0
+        )
+        
+        return render_template(
+            'index.html', 
+            table=table_html, 
+            c_val=raw_c, 
+            y_val=raw_y,
+            count=count,
+            curr_page=page,
+            pages=total_pages
         )
 
-    except ValueError as ve:
-        return render_template_string(HTML_TEMPLATE, contractor_val=raw_contractor, year_val=raw_year, table_html=None, error_msg=str(ve))
-    except Exception as e:
-        logger.error(f"Error crítico: {e}")
-        return render_template_string(HTML_TEMPLATE, contractor_val=raw_contractor, year_val=raw_year, table_html=None, error_msg="Error de comunicación.")
+    except ValueError as e:
+        return render_template('index.html', error=str(e), c_val=raw_c, y_val=raw_y)
 
-# Headers de Seguridad
 @app.after_request
-def add_security_headers(response):
-    response.headers['X-Frame-Options'] = 'DENY'
+def security_headers(response):
     response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+        "font-src https://cdnjs.cloudflare.com; "
+        "connect-src 'self' https://www.datos.gov.co;"
+    )
     return response
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=5000)
