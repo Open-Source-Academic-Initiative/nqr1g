@@ -13,141 +13,157 @@
         .btn-primary { background-color: #2574af; border-color: #2574af; }
         .btn-primary:hover { background-color: #1a5c8e; }
         
+        /* Adjusted responsive container */
         .table-responsive { 
-            box-shadow: 0 0 10px rgba(0,0,0,0.05); 
+            box-shadow: 0 0 15px rgba(0,0,0,0.05); 
             border-radius: 8px;
-            overflow-x: auto;
+            background: white;
+            /* Smooth scrollbar */
+            scrollbar-width: thin;
+            scrollbar-color: #aab7c4 #f1f3f5;
         }
 
-        /* --- ESTILOS DE ALINEACIÓN DE TABLA --- */
-        /* Por defecto: Encabezados y Celdas Centrados Vertical y Horizontalmente */
+        /* --- GENERAL TABLE STYLES --- */
+        .table {
+            margin-bottom: 0;
+            width: 100%;
+            table-layout: auto; /* Allows browser to adjust flexible columns */
+        }
+
         .table th, .table td {
-            text-align: center !important;
             vertical-align: middle !important;
-            padding: 12px 8px;
+            padding: 12px 10px;
+            font-size: 0.9rem;
         }
 
-        /* Encabezados siempre con fondo suave */
         .table thead th {
             background-color: #f1f3f5;
             white-space: nowrap;
-            font-weight: 600;
+            font-weight: 700;
             color: #2c3e50;
             border-bottom: 2px solid #dee2e6;
+            text-align: center;
         }
 
-        /* --- REGLA ESPECÍFICA PARA LA COLUMNA OBJETO --- */
-        /* 
-           NUEVO ORDEN DE COLUMNAS:
-           1. No.
-           2. Fuente
-           3. ID Proceso
-           4. Entidad
-           5. Objeto (COLUMNA PRINCIPAL - MAXIMIZADA)
-           6. Valor
-           7. Contratista
-           8. Fecha
-           9. Enlace
-        */
-        .table th:nth-child(5) {
-            text-align: center !important;
-        }
+        /* Default center alignment for short cells */
+        .table td { text-align: center; }
 
-        .table td:nth-child(5) {
-            text-align: justify !important;
-            text-justify: inter-word;
-            word-wrap: break-word;
-            overflow-wrap: break-word;
-            min-width: 450px;
-            max-width: none;
-            white-space: normal;
-            padding: 14px 18px;
-            line-height: 1.6;
-            font-size: 0.95em;
-            color: #2c3e50;
-        }
+        /* --- COLUMN DEFINITIONS (Full Width Optimized) --- */
         
-        /* Ajustes menores para otras columnas */
-        .table td:nth-child(1) { 
-            width: 45px; 
-            font-weight: bold;
-            color: #2574af;
-        } /* No. */
-
-        .table td:nth-child(2) { 
-            white-space: nowrap; 
-            font-weight: 600; 
-            color: #2574af;
-            font-size: 0.92em;
-        } /* Fuente */
-
+        /* 1. No. */
+        .table td:nth-child(1) { width: 40px; font-weight: bold; color: #2574af; } 
+        
+        /* 2. Source */
+        .table td:nth-child(2) { white-space: nowrap; font-weight: 600; color: #2574af; font-size: 0.85em; } 
+        
+        /* 3. Process ID */
         .table td:nth-child(3) { 
             white-space: nowrap; 
             font-family: 'Courier New', monospace; 
-            font-size: 0.85em;
-            color: #555;
-            letter-spacing: 0.5px;
-        } /* ID Proceso */
+            font-size: 0.8em; 
+            color: #555; 
+            max-width: 130px; /* Slight increase */
+            overflow: hidden;
+            text-overflow: ellipsis;
+        } 
 
+        /* 4. Entity */
         .table td:nth-child(4) { 
-            min-width: 180px;
+            min-width: 160px; 
             white-space: normal;
-            padding: 12px 10px;
-        } /* Entidad */
+            text-align: left;
+            font-size: 0.85em;
+            line-height: 1.3;
+        } 
 
-        .table td:nth-child(6) { 
-            white-space: nowrap;
-            font-weight: 600;
-            color: #27ae60;
-        } /* Valor */
+        /* 5. OBJECT (CRITICAL COLUMN) */
+        /* Since we are using fluid container, we can be more generous with width */
+        .table td:nth-child(5) {
+            text-align: left !important;
+            min-width: 300px; /* Increased base width */
+            white-space: normal;
+            line-height: 1.5;
+            color: #2c3e50;
+            font-weight: 500;
+        }
 
+        /* 6. Value */
+        .table td:nth-child(6) { white-space: nowrap; font-weight: 600; color: #27ae60; letter-spacing: -0.5px; } 
+
+        /* 7. Contractor */
         .table td:nth-child(7) { 
-            min-width: 150px;
+            min-width: 150px; 
             white-space: normal;
-            padding: 12px 10px;
-        } /* Contratista */
+            text-align: left;
+            font-size: 0.85em;
+        } 
 
-        .table td:nth-child(8) { 
-            white-space: nowrap;
-            color: #7f8c8d;
-            font-size: 0.9em;
-        } /* Fecha */
+        /* 8. Date */
+        .table td:nth-child(8) { white-space: nowrap; color: #7f8c8d; font-size: 0.85em; } 
 
-        .table td:nth-child(9) { 
-            width: 90px;
-        } /* Enlace */
+        /* 9. Link */
+        .table td:nth-child(9) { width: 80px; } 
 
-        /* Efecto hover para mejor interactividad */
-        .table tbody tr:hover {
-            background-color: #f8f9fa;
+        .table tbody tr:hover { background-color: #f8f9fa; }
+
+        /* --- MEDIA QUERIES --- */
+        
+        /* High Resolution Screens: Utilize the extra space from container-fluid */
+        @media (min-width: 1600px) {
+            .table td:nth-child(5) { min-width: 600px; } /* Expand Object column significantly */
+            .table td:nth-child(4) { min-width: 250px; } /* Expand Entity */
+            .table td:nth-child(7) { min-width: 200px; } /* Expand Contractor */
+            .container-fluid { padding-left: 3rem !important; padding-right: 3rem !important; }
+        }
+
+        /* Standard Desktop */
+        @media (min-width: 1200px) and (max-width: 1599px) {
+            .table td:nth-child(5) { min-width: 400px; }
+            .container-fluid { padding-left: 2rem !important; padding-right: 2rem !important; }
+        }
+
+        /* Mobile/Tablets */
+        @media (max-width: 991px) {
+            .table th, .table td { padding: 8px 5px; font-size: 0.85rem; }
+            .table td:nth-child(5) { min-width: 220px; } 
         }
         
     </style>
 </head>
 <body>
     <header class="header-banner text-center">
-        <div class="container">
+        <!-- Changed to container-fluid for consistency, but kept max-width logic via bootstrap classes if needed, 
+             or just fluid to align with the body -->
+        <div class="container-fluid">
             <h1><i class="fas fa-file-contract"></i> Consulta de Contratación SECOP</h1>
             <p class="lead">Búsqueda en tiempo real sobre datos.gov.co</p>
         </div>
     </header>
 
-    <main class="container">
-        <div class="card shadow-sm border-0 mb-4">
-            <div class="card-body">
-                <form action="/" method="GET" class="row g-3">
-                    <div class="col-md-6">
-                        <label for="contratista" class="form-label fw-bold">Contratista</label>
-                        <input type="text" id="contratista" class="form-control" name="contratista" value="{{ c_val }}" placeholder="Ej. OpenSAI" required>
+    <!-- CRITICAL CHANGE: Changed 'container' to 'container-fluid' with padding (px-4) 
+         This allows the content to take 100% width minus the padding -->
+    <main class="container-fluid px-3 px-lg-5">
+        
+        <!-- Search Card: Added restrictions so the form doesn't look too stretched on huge screens -->
+        <div class="row justify-content-center">
+            <div class="col-12 col-xl-10">
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-body">
+                        <form action="/" method="GET" class="row g-3">
+                            <div class="col-md-6">
+                                <label for="contratista" class="form-label fw-bold">Contratista</label>
+                                <input type="text" id="contratista" class="form-control" name="contratista" value="{{ c_val }}" placeholder="Ej. OpenSAI" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="anio" class="form-label fw-bold">Año</label>
+                                <input type="number" id="anio" class="form-control" name="anio" value="{{ y_val }}" min="2000" max="2030" required>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary w-100 fw-bold"><i class="fas fa-search"></i> Buscar</button>
+                            </div>
+                        </form>
                     </div>
-                    <div class="col-md-4">
-                        <label for="anio" class="form-label fw-bold">Año</label>
-                        <input type="number" id="anio" class="form-control" name="anio" value="{{ y_val }}" min="2000" max="2030" required>
-                    </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <button type="submit" class="btn btn-primary w-100 fw-bold"><i class="fas fa-search"></i> Buscar</button>
-                    </div>
-                </form>
+                </div>
             </div>
         </div>
 
@@ -165,9 +181,9 @@
 
         {% if table %}
         <div class="card shadow-sm border-0 animate__animated animate__fadeIn">
-            <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+            <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center flex-wrap">
                 <span>Resultados de la búsqueda</span>
-                <span class="badge bg-secondary">{{ count }} encontrados</span>
+                <span class="badge bg-secondary ms-2">{{ count }} encontrados</span>
             </div>
             
             <div class="card-body p-0 table-responsive">
@@ -177,7 +193,7 @@
             {% if pages > 1 %}
             <div class="card-footer bg-white py-3">
                 <nav aria-label="Navegación de resultados">
-                    <ul class="pagination justify-content-center mb-0">
+                    <ul class="pagination justify-content-center mb-0 flex-wrap">
                         <li class="page-item {% if curr_page <= 1 %}disabled{% endif %}">
                             <a class="page-link" href="/?contratista={{ c_val }}&anio={{ y_val }}&page={{ curr_page-1 }}">Anterior</a>
                         </li>

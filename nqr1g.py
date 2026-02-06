@@ -1,7 +1,7 @@
 """
 OpenSAI - SECOP Unified Query Microservice (I and II)
-Version: 2.4.1 (Production + Source Field)
-Date: January 2026
+Version: 2.5.0 (Optimized Query + Range Indexing)
+Date: February 2026
 """
 
 import logging
@@ -27,7 +27,8 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 # Credentials and Constants
 SOCRATA_APP_TOKEN = os.getenv("SOCRATA_APP_TOKEN", None) 
-TIMEOUT_SECONDS = 120
+# OPTIMIZATION: Increased timeout to 180s to prevent ReadTimeoutError on heavy loads
+TIMEOUT_SECONDS = 180 
 MAX_WORKERS = 4
 
 # Official Datasets
@@ -61,13 +62,14 @@ SOURCES = {
 # --- CONNECTION MANAGEMENT ---
 def get_session():
     session = requests.Session()
+    # OPTIMIZATION: Increased backoff_factor to 2 for better congestion handling
     retry_strategy = Retry(
-        total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504]
+        total=3, backoff_factor=2, status_forcelist=[429, 500, 502, 503, 504]
     )
     adapter = HTTPAdapter(pool_connections=10, pool_maxsize=10, max_retries=retry_strategy)
     session.mount("https://", adapter)
     
-    headers = {"User-Agent": "OpenSAI-Bot/2.1", "Accept": "application/json"}
+    headers = {"User-Agent": "OpenSAI-Bot/2.5", "Accept": "application/json"}
     if SOCRATA_APP_TOKEN:
         headers["X-App-Token"] = SOCRATA_APP_TOKEN
     
@@ -99,10 +101,18 @@ def query_source(source_name: str, config: dict, contractor: str, year: int) -> 
     col_map = config['cols']
     
     select_clause = ",".join(col_map.values())
+    
+    # --- OPTIMIZATION START ---
+    # Instead of functional filtering (date_extract_y), we use range filtering.
+    # This allows the Socrata engine to use the Time Index, drastically reducing the search space.
+    start_date = f"{year}-01-01T00:00:00"
+    end_date = f"{year}-12-31T23:59:59"
+    
     where_clause = (
-        f"contains(upper({col_map['contratista']}), '{contractor.upper()}') "
-        f"AND date_extract_y({col_map['fecha']}) = {year}"
+        f"{col_map['fecha']} BETWEEN '{start_date}' AND '{end_date}' "
+        f"AND contains(upper({col_map['contratista']}), '{contractor.upper()}')"
     )
+    # --- OPTIMIZATION END ---
     
     params = {
         "$select": select_clause,
@@ -112,6 +122,7 @@ def query_source(source_name: str, config: dict, contractor: str, year: int) -> 
     }
 
     try:
+        # Use the global TIMEOUT_SECONDS (180s)
         resp = http_session.get(endpoint, params=params, timeout=TIMEOUT_SECONDS)
         resp.raise_for_status()
         data = resp.json()
@@ -146,7 +157,7 @@ def fetch_unified_data(contractor: str, year: int):
                 logger.error(e)
 
     if not results:
-        return pd.DataFrame(), "No se pudo establecer conexión con los servicios de datos.gov.co. Intente más tarde."
+        return pd.DataFrame(), "No se pudieron obtener datos. Posible saturación del servicio o búsqueda sin resultados."
         
     final_df = pd.concat(results, ignore_index=True)
     return final_df, None
@@ -187,7 +198,6 @@ def index():
             )
             
         # --- EXACT DEFINITION OF COLUMNS TO DISPLAY ---
-        # HERE WE ADD 'Origen' -> 'Fuente' AND 'id_contrato' -> 'ID Proceso'
         cols_display = {
             'Origen': 'Fuente',
             'id_contrato': 'ID Proceso',
@@ -221,7 +231,6 @@ def index():
         
         df_page = df_view.iloc[(page-1)*per_page : page*per_page]
 
-        # Delegate styling to CSS (no text-center class here)
         table_html = df_page.to_html(
             classes='table table-hover table-striped align-middle mb-0 small', 
             index=False, 
