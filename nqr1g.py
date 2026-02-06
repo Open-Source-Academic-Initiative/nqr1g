@@ -27,7 +27,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 # Credentials and Constants
 SOCRATA_APP_TOKEN = os.getenv("SOCRATA_APP_TOKEN", None) 
-TIMEOUT_SECONDS = 50
+TIMEOUT_SECONDS = 120
 MAX_WORKERS = 4
 
 # Official Datasets
