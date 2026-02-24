@@ -1,36 +1,48 @@
-# Base sólida (Python 3.12 / Debian 12)
-FROM python:3.12-slim-bookworm
+# Builder stage (Debian slim + Python)
+FROM python:3.12-slim-bookworm AS builder
 
-# Optimización de Python
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
 
-WORKDIR /app
+WORKDIR /build
 
-# Dependencias del sistema
+# Build dependencies used only in the builder stage.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Instalación de dependencias de Python
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
+RUN python -m venv "${VIRTUAL_ENV}" && \
+    pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copia de código y templates
-COPY --chown=1000:1000 . .
+# Runtime stage (minimal Debian slim for execution)
+FROM python:3.12-slim-bookworm AS runtime
 
-# Seguridad: Usuario no privilegiado
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:$PATH"
+
+WORKDIR /app
+
+# Copy only runtime environment and required application files.
+COPY --from=builder /opt/venv /opt/venv
+COPY --chown=1000:1000 nqr1g.py /app/nqr1g.py
+COPY --chown=1000:1000 templates /app/templates
+
 USER 1000:1000
 
 EXPOSE 5000
 
-# Ejecución con Gunicorn + UvicornWorker
-# -k uvicorn.workers.UvicornWorker permite manejar FastAPI de forma asíncrona
-# Timeout de 120s alineado con la lógica de la aplicación
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/healthz', timeout=3)" || exit 1
+
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:5000", \
      "nqr1g:app", \
      "--workers", "4", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--timeout", "120"]
+     "--timeout", "121"]
