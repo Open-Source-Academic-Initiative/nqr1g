@@ -3,15 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Consulta de contratación pública SECOP integrada con datos.gov.co">
+    <meta name="description" content="Consulta de contratación pública SECOP integrada con datos.gov.co para buscar contratos por contratista y año.">
+    <meta name="robots" content="{% if c_val %}noindex,follow{% else %}index,follow{% endif %}">
+    <meta name="author" content="OpenSAI">
+    <meta name="theme-color" content="#2574af">
+    <link rel="canonical" href="{{ public_base_url }}/">
+    <link rel="alternate" hreflang="es-CO" href="{{ public_base_url }}/">
+
+    <meta property="og:type" content="website">
+    <meta property="og:locale" content="es_CO">
+    <meta property="og:site_name" content="OpenSAI">
+    <meta property="og:title" content="Buscador de Contratos - OpenSAI">
+    <meta property="og:description" content="Consulta contratos SECOP por contratista y año con datos públicos de datos.gov.co.">
+    <meta property="og:url" content="{{ public_base_url }}/">
+    <meta property="og:image" content="https://opensai.org/favicon.ico">
+
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Buscador de Contratos - OpenSAI">
+    <meta name="twitter:description" content="Consulta contratos SECOP por contratista y año con datos públicos de datos.gov.co.">
+    <meta name="twitter:image" content="https://opensai.org/favicon.ico">
+
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin>
     <title>Buscador de Contratos - OpenSAI</title>
+    <link rel="icon" type="image/x-icon" href="https://opensai.org/favicon.ico">
+    <link rel="shortcut icon" href="https://opensai.org/favicon.ico">
+    <!-- Google Analytics (GA4) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-LT6N15C8NF"></script>
+    <script nonce="{{ csp_nonce }}">
+        window.dataLayer = window.dataLayer || [];
+        function gtag() { dataLayer.push(arguments); }
+        gtag('js', new Date());
+        gtag('config', 'G-LT6N15C8NF');
+    </script>
+    <script nonce="{{ csp_nonce }}" type="application/ld+json">
+        {
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "name": "OpenSAI - Buscador de Contratos",
+            "url": "{{ public_base_url }}/",
+            "inLanguage": "es-CO",
+            "potentialAction": {
+                "@type": "SearchAction",
+                "target": "{{ public_base_url }}/?contratista={search_term_string}&anio={{ current_year }}",
+                "query-input": "required name=search_term_string"
+            }
+        }
+    </script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
+    <style nonce="{{ csp_nonce }}">
         body { background-color: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         .header-banner { background-color: #2574af; color: white; padding: 2rem 0; margin-bottom: 2rem; border-bottom: 4px solid #1a5c8e; }
         .btn-primary { background-color: #2574af; border-color: #2574af; }
         .btn-primary:hover { background-color: #1a5c8e; }
+        .icon { width: 1em; height: 1em; vertical-align: -0.125em; fill: currentColor; }
         
         /* Adjusted responsive container */
         .table-responsive { 
@@ -127,15 +172,89 @@
             .table th, .table td { padding: 8px 5px; font-size: 0.85rem; }
             .table td:nth-child(5) { min-width: 220px; } 
         }
-        
+
+        @media (max-width: 768px) {
+            .table td:nth-child(4),
+            .table td:nth-child(5),
+            .table td:nth-child(7) {
+                min-width: auto;
+                max-width: 70vw;
+            }
+        }
+
+        @media (hover: none), (pointer: coarse) {
+            #search-btn,
+            .page-link {
+                min-height: 44px;
+                min-width: 44px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+        }
+
+        .loading-indicator {
+            position: fixed;
+            inset: 0;
+            z-index: 1050;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(248, 249, 250, 0.85);
+            backdrop-filter: blur(1px);
+        }
+
+        .loading-card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+            padding: 1.25rem 1.5rem;
+            text-align: center;
+            max-width: 440px;
+            width: calc(100% - 2rem);
+        }
+
+        .loading-card .spinner-border {
+            width: 2rem;
+            height: 2rem;
+        }
+
+        body.loading-open {
+            position: fixed;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .spinner-border { animation: none !important; }
+        }
+
     </style>
 </head>
 <body>
+    <svg width="0" height="0" style="position:absolute;visibility:hidden" aria-hidden="true" focusable="false">
+        <symbol id="icon-contract" viewBox="0 0 16 16">
+            <path d="M14 4.5V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1h6.5L14 4.5zm-3-2V5h2.5L11 2.5zM4.5 7h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0 0 1zm0 2.5h7a.5.5 0 0 0 0-1h-7a.5.5 0 0 0 0 1zm0 2.5h4a.5.5 0 0 0 0-1h-4a.5.5 0 0 0 0 1z"/>
+        </symbol>
+        <symbol id="icon-search" viewBox="0 0 16 16">
+            <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001l3.85 3.85a1 1 0 0 0 1.414-1.415l-3.866-3.833zM12 6.5a5.5 5.5 0 1 1-11 0a5.5 5.5 0 0 1 11 0z"/>
+        </symbol>
+        <symbol id="icon-alert" viewBox="0 0 16 16">
+            <path d="M7.938 2.016a.13.13 0 0 1 .125 0l6.857 3.94c.11.063.11.223 0 .286l-6.857 3.94a.13.13 0 0 1-.125 0L1.08 6.242a.165.165 0 0 1 0-.286l6.857-3.94zM8 16a8 8 0 1 0 0-16a8 8 0 0 0 0 16zm.93-4.412a.58.58 0 1 1-1.16 0a.58.58 0 0 1 1.16 0zM8 4.5c.58 0 1 .45 1 .98l-.35 3.6a.65.65 0 0 1-1.3 0L7 5.48c0-.53.42-.98 1-.98z"/>
+        </symbol>
+        <symbol id="icon-filter" viewBox="0 0 16 16">
+            <path d="M6 10.117V14l4-2v-1.883l4.447-5.34A1 1 0 0 0 13.683 3H2.317a1 1 0 0 0-.764 1.777L6 10.117z"/>
+        </symbol>
+        <symbol id="icon-info" viewBox="0 0 16 16">
+            <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-11.412a.58.58 0 1 1-1.16 0a.58.58 0 0 1 1.16 0zM6.002 6.5a.5.5 0 0 1 .5-.5h1a.5.5 0 0 1 .5.5V11h1a.5.5 0 1 1 0 1h-3a.5.5 0 1 1 0-1h1V7h-.5a.5.5 0 0 1-.5-.5z"/>
+        </symbol>
+    </svg>
+
     <header class="header-banner text-center">
         <!-- Changed to container-fluid for consistency, but kept max-width logic via bootstrap classes if needed, 
              or just fluid to align with the body -->
         <div class="container-fluid">
-            <h1><i class="fas fa-file-contract"></i> Consulta de Contratación SECOP</h1>
+            <h1><svg class="icon" aria-hidden="true"><use href="#icon-contract"></use></svg> Consulta de Contratación SECOP</h1>
             <p class="lead">Búsqueda en tiempo real sobre datos.gov.co</p>
         </div>
     </header>
@@ -149,17 +268,19 @@
             <div class="col-12 col-xl-10">
                 <div class="card shadow-sm border-0 mb-4">
                     <div class="card-body">
-                        <form action="/" method="GET" class="row g-3">
+                        <form id="search-form" action="/" method="GET" class="row g-3">
                             <div class="col-md-6">
                                 <label for="contratista" class="form-label fw-bold">Contratista</label>
-                                <input type="text" id="contratista" class="form-control" name="contratista" value="{{ c_val }}" placeholder="Ej. OpenSAI" required>
+                                <input type="text" id="contratista" class="form-control" name="contratista" value="{{ c_val }}" placeholder="Ej. OpenSAI" autocomplete="organization" inputmode="search" required>
                             </div>
                             <div class="col-md-4">
                                 <label for="anio" class="form-label fw-bold">Año</label>
-                                <input type="number" id="anio" class="form-control" name="anio" value="{{ y_val }}" min="2000" max="2030" required>
+                                <input type="number" id="anio" class="form-control" name="anio" value="{{ y_val }}" min="2000" max="2030" autocomplete="off" inputmode="numeric" required>
                             </div>
                             <div class="col-md-2 d-flex align-items-end">
-                                <button type="submit" class="btn btn-primary w-100 fw-bold"><i class="fas fa-search"></i> Buscar</button>
+                                <button id="search-btn" type="submit" class="btn btn-primary w-100 fw-bold">
+                                    <svg class="icon me-1" aria-hidden="true"><use href="#icon-search"></use></svg> Buscar
+                                </button>
                             </div>
                         </form>
                     </div>
@@ -169,13 +290,36 @@
 
         {% if error %}
         <div class="alert alert-danger" role="alert">
-            <i class="fas fa-exclamation-triangle"></i> {{ error }}
+            {% if upstream_outage %}
+            <svg class="icon me-1" aria-hidden="true"><use href="#icon-alert"></use></svg>
+            <strong>Falla de servicio externo:</strong> {{ error }}
+            {% else %}
+            <svg class="icon me-1" aria-hidden="true"><use href="#icon-alert"></use></svg> {{ error }}
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if warnings %}
+        <div class="alert alert-warning" role="alert">
+            <svg class="icon me-1" aria-hidden="true"><use href="#icon-alert"></use></svg>
+            <strong>Avisos operativos:</strong>
+            <ul class="mb-0 mt-2">
+                {% for w in warnings %}
+                <li>{{ w }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if limited_results %}
+        <div class="alert alert-secondary" role="alert">
+            <svg class="icon me-1" aria-hidden="true"><use href="#icon-filter"></use></svg> Se aplica límite de navegación por rendimiento.
         </div>
         {% endif %}
 
         {% if no_results %}
         <div class="alert alert-info" role="alert">
-            <i class="fas fa-info-circle"></i> No se encontraron resultados para la búsqueda solicitada.
+            <svg class="icon me-1" aria-hidden="true"><use href="#icon-info"></use></svg> No se encontraron resultados para la búsqueda solicitada.
         </div>
         {% endif %}
 
@@ -208,9 +352,56 @@
         </div>
         {% endif %}
     </main>
+
+    <div id="loading-indicator" class="loading-indicator d-none" aria-live="polite" aria-atomic="true">
+        <div class="loading-card">
+            <div class="spinner-border text-primary" role="status" aria-label="Cargando"></div>
+            <p class="mb-1 mt-3 fw-bold">Tu consulta se está tramitando...</p>
+            <p class="mb-0 text-muted small">La respuesta de datos.gov.co puede tardar unos segundos.</p>
+        </div>
+    </div>
         
     <footer class="text-center mt-4 text-muted small py-3">
         <a href="https://opensai.org/" target="_blank" rel="noopener noreferrer" class="text-muted text-decoration-none">&copy; {{ current_year }} OpenSAI.</a>
     </footer>
+
+    <script nonce="{{ csp_nonce }}">
+        (function () {
+            const form = document.getElementById("search-form");
+            const button = document.getElementById("search-btn");
+            const loading = document.getElementById("loading-indicator");
+            const contractor = document.getElementById("contratista");
+            let scrollY = 0;
+
+            if (!form || !button || !loading) {
+                return;
+            }
+
+            form.addEventListener("submit", function () {
+                if (contractor && contractor.value.trim().length < 3) {
+                    return;
+                }
+                scrollY = window.scrollY || 0;
+                document.body.classList.add("loading-open");
+                document.body.style.top = "-" + scrollY + "px";
+                loading.classList.remove("d-none");
+                button.disabled = true;
+                button.setAttribute("aria-disabled", "true");
+                button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Consultando...';
+            });
+
+            window.addEventListener("pageshow", function () {
+                const top = document.body.style.top;
+                if (document.body.classList.contains("loading-open")) {
+                    document.body.classList.remove("loading-open");
+                    document.body.style.top = "";
+                    if (top) {
+                        const offset = parseInt(top || "0", 10) || 0;
+                        window.scrollTo(0, Math.abs(offset));
+                    }
+                }
+            });
+        })();
+    </script>
 </body>
 </html>
