@@ -6,6 +6,7 @@ Date: February 2026
 
 import asyncio
 import html
+import ipaddress
 import logging
 import os
 import random
@@ -470,6 +471,31 @@ def get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+def is_local_metrics_request(request: Request) -> bool:
+    """Allow metrics scraping only from true local loopback callers."""
+    client_host = request.client.host if request.client else ""
+    try:
+        if not ipaddress.ip_address(client_host).is_loopback:
+            return False
+    except ValueError:
+        return False
+
+    # Reject requests that appear to come through a proxy hop.
+    if request.headers.get("X-Forwarded-For") or request.headers.get("Forwarded") or request.headers.get("X-Real-IP"):
+        return False
+
+    host_header = request.headers.get("Host", "").strip()
+    if host_header.startswith("["):
+        close_idx = host_header.find("]")
+        host = host_header[1:close_idx] if close_idx > 0 else host_header.strip("[]")
+    else:
+        host = host_header.split(":", 1)[0]
+    host = host.strip().lower()
+    if host and host not in {"127.0.0.1", "localhost", "::1"}:
+        return False
+    return True
+
+
 def sanitize_public_base_url(url: str) -> str | None:
     if not url:
         return None
@@ -693,8 +719,15 @@ async def healthz_upstream():
     return JSONResponse({"status": "ok" if ok else "degraded", "upstream": "datos.gov.co", "reason": reason}, status_code=status_code)
 
 
-@app.get("/metrics", response_class=PlainTextResponse)
-async def metrics() -> PlainTextResponse:
+@app.get("/metrics", response_class=PlainTextResponse, include_in_schema=False)
+async def metrics(request: Request) -> PlainTextResponse:
+    if not is_local_metrics_request(request):
+        logger.warning(
+            "Blocked non-local metrics access client_ip=%s host=%s",
+            request.client.host if request.client else "unknown",
+            request.headers.get("Host", ""),
+        )
+        return PlainTextResponse("Forbidden", status_code=403)
     return PlainTextResponse(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 # --- ROUTES ---
