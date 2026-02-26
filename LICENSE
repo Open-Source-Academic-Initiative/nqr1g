@@ -1,0 +1,37 @@
+GNU GENERAL PUBLIC LICENSE
+Version 3, 29 June 2007
+
+Copyright (C) [year] Free Software Foundation, Inc. 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+Everyone is permitted to copy and distribute verbatim copies of this license document, but changing it is not allowed.
+
+                             Preamble
+
+The GNU General Public License is a free, copyleft license for software and other kinds of works.
+
+When we speak of free software, we are referring to freedom, not price. Our General Public Licenses are designed to make sure that you have the freedom to distribute copies of free software (and charge for this service if you wish), that you receive source code or can get it if you want it, that you can change the software and use pieces of it in new free programs, and that you are informed of your rights when you distribute copies of the software.
+
+Understanding the GPL requires the ability to consider the whole system. If some part of the system is free software, that gives you the freedom to control it, but if another part is proprietary software, that can make you dependent on the proprietary part. That is why we have developed this license so that you can use free software in a common system with proprietary software without putting your freedom at risk. The GNU General Public License is just one of several copyleft licenses.
+
+The precise terms and conditions for copying, distribution and modification follow.
+
+                          TERMS AND CONDITIONS
+
+0. Definitions.
+
+This License refers to copyright law and to the following specific terms:
+
+"The Program" means any copyrightable work licensed under this License. Each licensee is addressed as "you".
+"Licensor" means the individual, organization or entity that offers You a right to use the Program under this License.
+"Modifications" means any work based on the Program or any work in which the Program is incorporated.
+"You" means an individual or legal entity exercising rights under this License.
+"Source Code" means the preferred form of the work for making modifications to it, including all modules it contains.
+"Object Code" means any non-source form of a work.
+"Copy" means any tangible or intangible embodiment of the Program, other than a modification, in any format.
+"�" indicates a space character.
+
+1. Source Code.
+
+You must include a copy of this License along with the Program when you distribute it, and that License must guarantee you the rights stated in the License. You may not impose any further restrictions on the rights granted by the License, and you may not impose any additional requirements.
+
+2. Flexibility. [...]
