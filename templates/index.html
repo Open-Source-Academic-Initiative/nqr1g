@@ -16,18 +16,18 @@
     <meta property="og:title" content="Buscador de Contratos - OpenSAI">
     <meta property="og:description" content="Consulta contratos SECOP por contratista y año con datos públicos de datos.gov.co.">
     <meta property="og:url" content="{{ public_base_url }}/">
-    <meta property="og:image" content="https://opensai.org/favicon.ico">
+    <meta property="og:image" content="{{ public_base_url }}/static/favicon.ico">
 
     <meta name="twitter:card" content="summary">
     <meta name="twitter:title" content="Buscador de Contratos - OpenSAI">
     <meta name="twitter:description" content="Consulta contratos SECOP por contratista y año con datos públicos de datos.gov.co.">
-    <meta name="twitter:image" content="https://opensai.org/favicon.ico">
+    <meta name="twitter:image" content="{{ public_base_url }}/static/favicon.ico">
 
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin>
     <title>Buscador de Contratos - OpenSAI</title>
-    <link rel="icon" type="image/x-icon" href="https://opensai.org/favicon.ico">
-    <link rel="shortcut icon" href="https://opensai.org/favicon.ico">
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <link rel="shortcut icon" href="/static/favicon.ico">
     <!-- Google Analytics (GA4) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-LT6N15C8NF"></script>
     <script nonce="{{ csp_nonce }}">
@@ -57,22 +57,18 @@
         .btn-primary { background-color: #2574af; border-color: #2574af; }
         .btn-primary:hover { background-color: #1a5c8e; }
         .icon { width: 1em; height: 1em; vertical-align: -0.125em; fill: currentColor; }
-        
-        /* Adjusted responsive container */
         .table-responsive { 
             box-shadow: 0 0 15px rgba(0,0,0,0.05); 
             border-radius: 8px;
             background: white;
-            /* Smooth scrollbar */
             scrollbar-width: thin;
             scrollbar-color: #aab7c4 #f1f3f5;
         }
 
-        /* --- GENERAL TABLE STYLES --- */
         .table {
             margin-bottom: 0;
             width: 100%;
-            table-layout: auto; /* Allows browser to adjust flexible columns */
+            table-layout: auto;
         }
 
         .table th, .table td {
@@ -90,29 +86,19 @@
             text-align: center;
         }
 
-        /* Default center alignment for short cells */
         .table td { text-align: center; }
-
-        /* --- COLUMN DEFINITIONS (Full Width Optimized) --- */
-        
-        /* 1. No. */
         .table td:nth-child(1) { width: 40px; font-weight: bold; color: #2574af; } 
-        
-        /* 2. Source */
         .table td:nth-child(2) { white-space: nowrap; font-weight: 600; color: #2574af; font-size: 0.85em; } 
-        
-        /* 3. Process ID */
         .table td:nth-child(3) { 
             white-space: nowrap; 
             font-family: 'Courier New', monospace; 
             font-size: 0.8em; 
             color: #555; 
-            max-width: 130px; /* Slight increase */
+            max-width: 130px;
             overflow: hidden;
             text-overflow: ellipsis;
         } 
 
-        /* 4. Entity */
         .table td:nth-child(4) { 
             min-width: 160px; 
             white-space: normal;
@@ -121,21 +107,16 @@
             line-height: 1.3;
         } 
 
-        /* 5. OBJECT (CRITICAL COLUMN) */
-        /* Since we are using fluid container, we can be more generous with width */
         .table td:nth-child(5) {
             text-align: left !important;
-            min-width: 300px; /* Increased base width */
+            min-width: 300px;
             white-space: normal;
             line-height: 1.5;
             color: #2c3e50;
             font-weight: 500;
         }
 
-        /* 6. Value */
         .table td:nth-child(6) { white-space: nowrap; font-weight: 600; color: #27ae60; letter-spacing: -0.5px; } 
-
-        /* 7. Contractor */
         .table td:nth-child(7) { 
             min-width: 150px; 
             white-space: normal;
@@ -143,31 +124,23 @@
             font-size: 0.85em;
         } 
 
-        /* 8. Date */
         .table td:nth-child(8) { white-space: nowrap; color: #7f8c8d; font-size: 0.85em; } 
-
-        /* 9. Link */
         .table td:nth-child(9) { width: 80px; } 
 
         .table tbody tr:hover { background-color: #f8f9fa; }
 
-        /* --- MEDIA QUERIES --- */
-        
-        /* High Resolution Screens: Utilize the extra space from container-fluid */
         @media (min-width: 1600px) {
-            .table td:nth-child(5) { min-width: 600px; } /* Expand Object column significantly */
-            .table td:nth-child(4) { min-width: 250px; } /* Expand Entity */
-            .table td:nth-child(7) { min-width: 200px; } /* Expand Contractor */
+            .table td:nth-child(5) { min-width: 600px; }
+            .table td:nth-child(4) { min-width: 250px; }
+            .table td:nth-child(7) { min-width: 200px; }
             .container-fluid { padding-left: 3rem !important; padding-right: 3rem !important; }
         }
 
-        /* Standard Desktop */
         @media (min-width: 1200px) and (max-width: 1599px) {
             .table td:nth-child(5) { min-width: 400px; }
             .container-fluid { padding-left: 2rem !important; padding-right: 2rem !important; }
         }
 
-        /* Mobile/Tablets */
         @media (max-width: 991px) {
             .table th, .table td { padding: 8px 5px; font-size: 0.85rem; }
             .table td:nth-child(5) { min-width: 220px; } 
@@ -251,19 +224,13 @@
     </svg>
 
     <header class="header-banner text-center">
-        <!-- Changed to container-fluid for consistency, but kept max-width logic via bootstrap classes if needed, 
-             or just fluid to align with the body -->
         <div class="container-fluid">
             <h1><svg class="icon" aria-hidden="true"><use href="#icon-contract"></use></svg> Consulta de Contratación SECOP</h1>
             <p class="lead">Búsqueda en tiempo real sobre datos.gov.co</p>
         </div>
     </header>
 
-    <!-- CRITICAL CHANGE: Changed 'container' to 'container-fluid' with padding (px-4) 
-         This allows the content to take 100% width minus the padding -->
     <main class="container-fluid px-3 px-lg-5">
-        
-        <!-- Search Card: Added restrictions so the form doesn't look too stretched on huge screens -->
         <div class="row justify-content-center">
             <div class="col-12 col-xl-10">
                 <div class="card shadow-sm border-0 mb-4">
@@ -275,7 +242,7 @@
                             </div>
                             <div class="col-md-4">
                                 <label for="anio" class="form-label fw-bold">Año</label>
-                                <input type="number" id="anio" class="form-control" name="anio" value="{{ y_val }}" min="2000" max="2030" autocomplete="off" inputmode="numeric" required>
+                                <input type="number" id="anio" class="form-control" name="anio" value="{{ y_val }}" min="2000" max="{{ current_year + 1 }}" autocomplete="off" inputmode="numeric" required>
                             </div>
                             <div class="col-md-2 d-flex align-items-end">
                                 <button id="search-btn" type="submit" class="btn btn-primary w-100 fw-bold">
@@ -339,11 +306,11 @@
                 <nav aria-label="Navegación de resultados">
                     <ul class="pagination justify-content-center mb-0 flex-wrap">
                         <li class="page-item {% if curr_page <= 1 %}disabled{% endif %}">
-                            <a class="page-link" href="/?contratista={{ c_val }}&anio={{ y_val }}&page={{ curr_page-1 }}">Anterior</a>
+                            <a class="page-link" href="/?contratista={{ c_val|urlencode }}&anio={{ y_val }}&page={{ curr_page-1 }}">Anterior</a>
                         </li>
                         <li class="page-item disabled"><span class="page-link">Página {{ curr_page }} de {{ pages }}</span></li>
                         <li class="page-item {% if curr_page >= pages %}disabled{% endif %}">
-                            <a class="page-link" href="/?contratista={{ c_val }}&anio={{ y_val }}&page={{ curr_page+1 }}">Siguiente</a>
+                            <a class="page-link" href="/?contratista={{ c_val|urlencode }}&anio={{ y_val }}&page={{ curr_page+1 }}">Siguiente</a>
                         </li>
                     </ul>
                 </nav>

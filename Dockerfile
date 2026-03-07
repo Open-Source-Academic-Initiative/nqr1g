@@ -31,6 +31,8 @@ WORKDIR /app
 # Copy only runtime environment and required application files.
 COPY --from=builder /opt/venv /opt/venv
 COPY --chown=1000:1000 nqr1g.py /app/nqr1g.py
+COPY --chown=1000:1000 opensai_app /app/opensai_app
+COPY --chown=1000:1000 static /app/static
 COPY --chown=1000:1000 templates /app/templates
 
 USER 1000:1000
