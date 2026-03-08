@@ -1,10 +1,10 @@
 # nqr1g - OpenSAI
-Cliente de consulta contratación publica - Colombia.
+Cliente de consulta de contratación pública en Colombia.
 
 ## Deployment in local
 ```bash
 docker build -t socrata-nqr1g-api .
-docker run -d -p 5000:5000 --name contenedor-nqr1g socrata-nq1g-api
+docker run -d -p 5000:5000 --name contenedor-nqr1g socrata-nqr1g-api
 ```
 ## Run app using podman
 
@@ -40,8 +40,8 @@ To check if is running:
 ```
 podman ps
 ```
-### Your are using apache and you like to publish the service:
-Can be created a vhost pointing to the port of the container running. A config file in /etc/httpd/conf.d/nqr1g.conf
+### If you are using Apache and want to publish the service
+A vhost can point to the port of the running container. Example config in `/etc/httpd/conf.d/nqr1g.conf`:
 ```
 <VirtualHost *:80>
     ServerName nqr1g.mydomain.com
@@ -58,4 +58,4 @@ Restart apache:
 ```
 systemctl restart httpd
 ```
-In your DNS service, must be created an A register with the value nqr1g.mydomain.com
+In your DNS service, create an A record for `nqr1g.mydomain.com`.
