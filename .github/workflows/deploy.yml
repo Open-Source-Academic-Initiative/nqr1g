@@ -1,0 +1,68 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches: [ "production" ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.OPENSAI_HOST }}
+          username: ${{ secrets.OPENSAI_USER }}
+          key: ${{ secrets.OPENSAI_SK }}
+          script: |
+            # Ensure the systemd user directory exists
+            mkdir -p ~/.config/systemd/user/
+            
+            # Fetch the service file from the repo (could be improved by sending it)
+            # For simplicity, we assume the user maintains the service file or we curl it
+            # systemctl --user daemon-reload
+            # systemctl --user restart nqr1g.service
+            
+            # Direct podman pull and restart if not using systemd unit yet:
+            podman pull ghcr.io/${{ env.IMAGE_NAME }}:latest
+            podman stop nqr1g || true
+            podman rm nqr1g || true
+            podman run -d --name nqr1g -p 5000:5000 ghcr.io/${{ env.IMAGE_NAME }}:latest
