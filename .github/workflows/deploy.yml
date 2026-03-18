@@ -57,6 +57,9 @@ jobs:
           username: ${{ secrets.OPENSAI_USER }}
           key: ${{ secrets.OPENSAI_SK }}
           script: |
+            # Log in to GHCR (required for private images)
+            echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+
             # Ensure the systemd user directory exists
             mkdir -p ~/.config/systemd/user/
             
