@@ -33,14 +33,18 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             latest
+        env:
+          IMAGE_NAME: ${{ github.repository }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}:latest
           labels: ${{ steps.meta.outputs.labels }}
+        env:
+          IMAGE_NAME_LOWER: ${{ github.repository }}
 
   deploy:
     needs: build
@@ -56,13 +60,11 @@ jobs:
             # Ensure the systemd user directory exists
             mkdir -p ~/.config/systemd/user/
             
-            # Fetch the service file from the repo (could be improved by sending it)
-            # For simplicity, we assume the user maintains the service file or we curl it
-            # systemctl --user daemon-reload
-            # systemctl --user restart nqr1g.service
+            # Lowercase image name for podman compatibility
+            IMAGE_NAME_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
             
-            # Direct podman pull and restart if not using systemd unit yet:
-            podman pull ghcr.io/${{ env.IMAGE_NAME }}:latest
+            # Direct podman pull and restart
+            podman pull ghcr.io/${IMAGE_NAME_LOWER}:latest
             podman stop nqr1g || true
             podman rm nqr1g || true
-            podman run -d --name nqr1g -p 5000:5000 ghcr.io/${{ env.IMAGE_NAME }}:latest
+            podman run -d --name nqr1g -p 5000:5000 ghcr.io/${IMAGE_NAME_LOWER}:latest
