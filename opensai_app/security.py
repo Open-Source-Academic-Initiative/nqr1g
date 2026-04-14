@@ -11,23 +11,16 @@ from .observability import logger
 
 
 def build_csp_header(nonce: str) -> str:
-    if settings.strict_security_mode:
-        return (
-            "default-src 'self'; "
-            f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://www.googletagmanager.com; "
-            f"style-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
-            "font-src 'self' https://cdnjs.cloudflare.com; "
-            "img-src 'self' data: https:; "
-            "connect-src 'self' https://www.datos.gov.co https://www.google-analytics.com https://region1.google-analytics.com; "
-            "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self';"
-        )
-    return (
+    base = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.googletagmanager.com; "
-        "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
-        "font-src https://cdnjs.cloudflare.com; "
-        "connect-src 'self' https://www.datos.gov.co;"
+        f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://www.googletagmanager.com; "
+        f"style-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
+        "font-src 'self' https://cdnjs.cloudflare.com; "
+        "img-src 'self' data: https:; "
+        "connect-src 'self' https://www.datos.gov.co https://www.google-analytics.com https://region1.google-analytics.com; "
+        "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self';"
     )
+    return base
 
 
 def get_client_ip(request: Request) -> str:
@@ -147,9 +140,9 @@ class SearchThrottle:
 
     async def allow_request(self, request: Request) -> tuple[bool, str]:
         now = time.monotonic()
-        if not await self._global_limiter.allow(now):
-            return False, "global"
         client_ip = get_client_ip(request)
         if not await self._per_ip_limiter.allow(client_ip, now):
             return False, "ip"
+        if not await self._global_limiter.allow(now):
+            return False, "global"
         return True, "ok"

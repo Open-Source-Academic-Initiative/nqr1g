@@ -15,16 +15,40 @@ def _is_falsy(value: str) -> bool:
     return value in {"0", "false", "no", "off"}
 
 
-def _get_int_env(name: str, default: int, minimum: int) -> int:
-    return max(minimum, int(os.getenv(name, str(default))))
+def _get_int_env(name: str, default: int, minimum: int, maximum: int | None = None) -> int:
+    raw = os.getenv(name)
+    if raw is None:
+        value = default
+    else:
+        try:
+            value = int(raw)
+        except ValueError:
+            logger.warning("Invalid int env %s=%r, using default=%s", name, raw, default)
+            value = default
+    value = max(minimum, value)
+    if maximum is not None:
+        value = min(maximum, value)
+    return value
 
 
 def _get_float_env(name: str, default: float, minimum: float) -> float:
-    return max(minimum, float(os.getenv(name, str(default))))
+    raw = os.getenv(name)
+    if raw is None:
+        return max(minimum, default)
+    try:
+        return max(minimum, float(raw))
+    except ValueError:
+        logger.warning("Invalid float env %s=%r, using default=%s", name, raw, default)
+        return max(minimum, default)
 
 
 def _get_capped_float_env(name: str, default: float, minimum: float, maximum: float) -> float:
     return min(maximum, _get_float_env(name, default, minimum))
+
+
+RETRYABLE_STATUS_CODES: frozenset[int] = frozenset({202, 429, 500, 502, 503, 504})
+MAX_PER_PAGE = 500
+MAX_QUERY_WINDOW_CAP = 50000
 
 
 def parse_cors_origins(raw: str) -> list[str]:
@@ -63,7 +87,11 @@ class SocrataSettings:
     pool_timeout_seconds: float
     health_timeout_seconds: float
     health_cache_seconds: float
-    retryable_status_codes: set[int]
+    retryable_status_codes: frozenset[int]
+    retry_after_hard_cap_seconds: float
+    breaker_failure_threshold: int
+    breaker_cooldown_seconds: float
+    breaker_half_open_probe_timeout_seconds: float
 
 
 @dataclass(frozen=True)
@@ -167,33 +195,37 @@ def _resolve_search_mode() -> str:
 
 
 def _load_search_settings(timeout_cap_seconds: float) -> SearchSettings:
-    per_page = _get_int_env("PER_PAGE", 50, 1)
+    per_page = _get_int_env("PER_PAGE", 50, 1, MAX_PER_PAGE)
+    max_query_window = _get_int_env("MAX_QUERY_WINDOW", 5000, per_page, MAX_QUERY_WINDOW_CAP)
     return SearchSettings(
         per_page=per_page,
-        max_query_window=max(per_page, int(os.getenv("MAX_QUERY_WINDOW", "5000"))),
+        max_query_window=max_query_window,
         search_mode=_resolve_search_mode(),
         use_unaccent=os.getenv("SOCRATA_USE_UNACCENT", "0").strip().lower() in {"1", "true", "yes"},
+        # Budgets tuned from measured Socrata latencies:
+        # count p95 (SECOP II) ~0.75s, worst-case p99 (SECOP I starts_with) ~11.5s.
+        # rows p95 @5000 ~1.5s. `contains` on SECOP I times out reliably → never enabled by default.
         request_budget_seconds=_get_capped_float_env(
             "REQUEST_BUDGET_SECONDS",
-            120.0,
-            10.0,
+            30.0,
+            5.0,
             timeout_cap_seconds,
         ),
         count_phase_budget_seconds=_get_capped_float_env(
             "COUNT_PHASE_BUDGET_SECONDS",
-            12.0,
+            8.0,
             1.0,
             timeout_cap_seconds,
         ),
         rows_phase_budget_seconds=_get_capped_float_env(
             "ROWS_PHASE_BUDGET_SECONDS",
-            20.0,
+            8.0,
             1.0,
             timeout_cap_seconds,
         ),
         response_reserve_seconds=_get_capped_float_env(
             "RESPONSE_RESERVE_SECONDS",
-            2.0,
+            1.5,
             0.5,
             timeout_cap_seconds,
         ),
@@ -203,48 +235,59 @@ def _load_search_settings(timeout_cap_seconds: float) -> SearchSettings:
 def _load_socrata_settings(timeout_cap_seconds: float) -> SocrataSettings:
     return SocrataSettings(
         app_token=os.getenv("SOCRATA_APP_TOKEN", None),
-        max_concurrent_requests=_get_int_env("MAX_CONCURRENT_REQUESTS", 5, 1),
-        max_retries=_get_int_env("SOCRATA_MAX_RETRIES", 0, 0),
+        # Concurrency: measured linear zone ≤ 8 parallel; queueing explicit at 10+.
+        max_concurrent_requests=_get_int_env("MAX_CONCURRENT_REQUESTS", 6, 1, 50),
+        max_retries=_get_int_env("SOCRATA_MAX_RETRIES", 2, 0, 5),
         retry_base_seconds=_get_float_env("SOCRATA_RETRY_BASE_SECONDS", 0.4, 0.1),
-        max_retry_delay_seconds=_get_float_env("SOCRATA_MAX_RETRY_DELAY_SECONDS", 1.2, 0.2),
+        max_retry_delay_seconds=_get_float_env("SOCRATA_MAX_RETRY_DELAY_SECONDS", 2.0, 0.2),
         request_max_wait_seconds=_get_capped_float_env(
             "SOCRATA_REQUEST_MAX_WAIT_SECONDS",
             120.0,
             1.0,
             timeout_cap_seconds,
         ),
+        # Measured TCP connect < 0.3s always; read p99 ~12s worst case.
         connect_timeout_seconds=_get_capped_float_env(
             "SOCRATA_CONNECT_TIMEOUT_SECONDS",
-            5.0,
-            0.2,
+            3.0,
+            0.5,
             timeout_cap_seconds,
         ),
         read_timeout_seconds=_get_capped_float_env(
             "SOCRATA_READ_TIMEOUT_SECONDS",
-            120.0,
-            0.2,
+            15.0,
+            1.0,
             timeout_cap_seconds,
         ),
         write_timeout_seconds=_get_capped_float_env(
             "SOCRATA_WRITE_TIMEOUT_SECONDS",
-            10.0,
+            5.0,
             0.2,
             timeout_cap_seconds,
         ),
         pool_timeout_seconds=_get_capped_float_env(
             "SOCRATA_POOL_TIMEOUT_SECONDS",
-            5.0,
+            3.0,
             0.2,
             timeout_cap_seconds,
         ),
         health_timeout_seconds=_get_capped_float_env(
             "SOCRATA_HEALTH_TIMEOUT_SECONDS",
-            5.0,
-            0.2,
+            3.0,
+            0.5,
             timeout_cap_seconds,
         ),
         health_cache_seconds=_get_float_env("SOCRATA_HEALTH_CACHE_SECONDS", 30.0, 1.0),
-        retryable_status_codes={202, 429, 500, 502, 503, 504},
+        retryable_status_codes=RETRYABLE_STATUS_CODES,
+        retry_after_hard_cap_seconds=_get_float_env("SOCRATA_RETRY_AFTER_HARD_CAP_SECONDS", 30.0, 1.0),
+        # Circuit breaker tuned from measurements: SECOP I `starts_with` count had 2/5 hard timeouts.
+        # After 3 consecutive failures per source (dataset+op), pause it for 30s to shed load and
+        # respond to the user with the remaining source instead of stacking queued calls.
+        breaker_failure_threshold=_get_int_env("SOCRATA_BREAKER_FAILURE_THRESHOLD", 3, 1, 20),
+        breaker_cooldown_seconds=_get_float_env("SOCRATA_BREAKER_COOLDOWN_SECONDS", 30.0, 1.0),
+        breaker_half_open_probe_timeout_seconds=_get_float_env(
+            "SOCRATA_BREAKER_HALF_OPEN_PROBE_TIMEOUT_SECONDS", 2.0, 0.5
+        ),
     )
 
 
