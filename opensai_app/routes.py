@@ -31,7 +31,10 @@ def create_app() -> FastAPI:
         finally:
             await socrata_client.close()
 
-    app = FastAPI(title="OpenSAI - SECOP API", version="3.0.0", lifespan=lifespan)
+    fastapi_kwargs: dict = {"title": "OpenSAI - SECOP API", "version": "3.0.0", "lifespan": lifespan}
+    if settings.strict_security_mode:
+        fastapi_kwargs.update(docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(**fastapi_kwargs)
     app.state.socrata_client = socrata_client
     app.state.search_service = search_service
     app.state.search_throttle = search_throttle

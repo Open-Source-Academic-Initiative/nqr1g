@@ -13,11 +13,11 @@ from .observability import logger
 def build_csp_header(nonce: str) -> str:
     base = (
         "default-src 'self'; "
-        f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://www.googletagmanager.com; "
+        f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net; "
         f"style-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
         "font-src 'self' https://cdnjs.cloudflare.com; "
         "img-src 'self' data: https:; "
-        "connect-src 'self' https://www.datos.gov.co https://www.google-analytics.com https://region1.google-analytics.com; "
+        "connect-src 'self' https://www.datos.gov.co; "
         "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self';"
     )
     return base
