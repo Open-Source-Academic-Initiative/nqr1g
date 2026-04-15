@@ -24,18 +24,9 @@
     <meta name="twitter:image" content="{{ public_base_url }}/static/favicon.ico">
 
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
-    <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin>
     <title>Buscador de Contratos - OpenSAI</title>
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <link rel="shortcut icon" href="/static/favicon.ico">
-    <!-- Google Analytics (GA4) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-LT6N15C8NF"></script>
-    <script nonce="{{ csp_nonce }}">
-        window.dataLayer = window.dataLayer || [];
-        function gtag() { dataLayer.push(arguments); }
-        gtag('js', new Date());
-        gtag('config', 'G-LT6N15C8NF');
-    </script>
     <script nonce="{{ csp_nonce }}" type="application/ld+json">
         {
             "@context": "https://schema.org",
@@ -330,6 +321,8 @@
         
     <footer class="text-center mt-4 text-muted small py-3">
         <a href="https://opensai.org/" target="_blank" rel="noopener noreferrer" class="text-muted text-decoration-none">&copy; {{ current_year }} OpenSAI.</a>
+        <span aria-hidden="true" class="mx-1">·</span>
+        <a href="https://opensai.org/privacidad" target="_blank" rel="noopener noreferrer" class="text-muted text-decoration-none">Política de Privacidad</a>
     </footer>
 
     <script nonce="{{ csp_nonce }}">

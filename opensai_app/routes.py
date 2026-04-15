@@ -10,9 +10,12 @@ from .config import settings
 from .middleware import configure_middleware
 from .observability import configure_logging, logger, render_metrics
 from .presentation import render_search_page
-from .search_service import SearchExecution, SearchService
+from .search_service import SearchExecution, SearchService, clean_input
 from .security import SearchThrottle, get_client_ip, is_local_metrics_request
 from .socrata_client import SocrataClient
+
+
+_MAX_PAGE = max(1, settings.search.max_query_window // max(1, settings.search.per_page) + 1)
 
 
 def create_app() -> FastAPI:
@@ -28,7 +31,10 @@ def create_app() -> FastAPI:
         finally:
             await socrata_client.close()
 
-    app = FastAPI(title="OpenSAI - SECOP API", version="3.0.0", lifespan=lifespan)
+    fastapi_kwargs: dict = {"title": "OpenSAI - SECOP API", "version": "3.0.0", "lifespan": lifespan}
+    if settings.strict_security_mode:
+        fastapi_kwargs.update(docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(**fastapi_kwargs)
     app.state.socrata_client = socrata_client
     app.state.search_service = search_service
     app.state.search_throttle = search_throttle
@@ -70,11 +76,11 @@ def create_app() -> FastAPI:
         request: Request,
         contratista: str | None = Query(None),
         anio: int | None = Query(None),
-        page: int = Query(1, ge=1),
+        page: int = Query(1, ge=1, le=_MAX_PAGE),
     ):
         current_year = datetime.now().year
         selected_year = anio if anio is not None else current_year
-        if contratista:
+        if contratista and len(clean_input(contratista)) >= 3:
             allowed, throttle_reason = await search_throttle.allow_request(request)
             if not allowed:
                 logger.warning(

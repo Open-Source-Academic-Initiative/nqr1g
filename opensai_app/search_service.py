@@ -9,7 +9,7 @@ import pandas as pd
 
 from .config import SOURCES, settings, UPSTREAM_FAILURE_MESSAGE
 from .observability import logger
-from .socrata_client import RequestBudgetExceeded, SocrataClient
+from .socrata_client import CircuitOpenError, RequestBudgetExceeded, SocrataClient
 
 
 SourceTotals = dict[str, int]
@@ -68,14 +68,18 @@ class SearchExecution:
             current_page=requested_page,
         )
 
+_ALLOWED_INPUT_RE = re.compile(r"[^a-zA-Z0-9\sñÑáéíóúÁÉÍÓÚ\.\-,&()/]")
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
 def clean_input(text: str) -> str:
     if not text:
         return ""
-    return re.sub(r"[^a-zA-Z0-9\sñÑáéíóúÁÉÍÓÚ\.]", "", text).strip()
+    return _ALLOWED_INPUT_RE.sub("", text).strip()
 
 
 def format_soql_string(text: str) -> str:
-    return text.replace("'", "''")
+    return _CONTROL_CHARS_RE.sub("", text).replace("'", "''")
 
 
 def remove_accents(text: str) -> str:
@@ -99,19 +103,7 @@ def build_contractor_search_expression(col_map: dict[str, str], contractor: str)
     return (
         f"{field_expr} = '{safe_contractor}' OR "
         f"starts_with({field_expr}, '{safe_contractor} ') OR "
-        f"contains({field_expr}, ' {safe_contractor} ') OR "
-        f"contains({field_expr}, ' {safe_contractor}') OR "
-        f"contains({field_expr}, '{safe_contractor} ') OR "
-        f"contains({field_expr}, '{safe_contractor}-') OR "
-        f"contains({field_expr}, '-{safe_contractor}') OR "
-        f"contains({field_expr}, '{safe_contractor}.') OR "
-        f"contains({field_expr}, '.{safe_contractor}') OR "
-        f"contains({field_expr}, '{safe_contractor},') OR "
-        f"contains({field_expr}, ',{safe_contractor}') OR "
-        f"contains({field_expr}, '({safe_contractor}') OR "
-        f"contains({field_expr}, '{safe_contractor})') OR "
-        f"contains({field_expr}, '{safe_contractor}/') OR "
-        f"contains({field_expr}, '/{safe_contractor}')"
+        f"contains({field_expr}, ' {safe_contractor}')"
     )
 
 
@@ -143,10 +135,14 @@ def calculate_page_window(total_count: int, page: int) -> PageWindow:
 
 
 def merge_and_sort_result_frames(frames: list[pd.DataFrame]) -> pd.DataFrame:
-    final_df = pd.concat(frames, ignore_index=True)
-    sort_fields = [column for column in ["fecha", "row_id"] if column in final_df.columns]
-    if sort_fields:
+    final_df = pd.concat(frames, ignore_index=True, copy=False)
+    if "fecha" in final_df.columns:
+        final_df["_fecha_sort"] = pd.to_datetime(final_df["fecha"], errors="coerce", utc=False)
+        sort_fields = ["_fecha_sort"] + (["row_id"] if "row_id" in final_df.columns else [])
         final_df = final_df.sort_values(by=sort_fields, ascending=[False] * len(sort_fields))
+        final_df = final_df.drop(columns=["_fecha_sort"])
+    elif "row_id" in final_df.columns:
+        final_df = final_df.sort_values(by=["row_id"], ascending=[False])
     return final_df
 
 
@@ -257,14 +253,18 @@ class SearchService:
         successful_sources: set[str] = set()
         for (source_name, _), result in zip(SOURCES.items(), count_results, strict=False):
             if isinstance(result, BaseException):
-                warnings.append(f"No se pudo consultar {source_name}.")
-                logger.error("Error counting source=%s: %s", source_name, result)
+                if isinstance(result, CircuitOpenError):
+                    warnings.append(f"{source_name} temporalmente no disponible (protección por sobrecarga).")
+                    logger.warning("Circuit open for source=%s during count phase", source_name)
+                else:
+                    warnings.append(f"No se pudo consultar {source_name}.")
+                    logger.error("Error counting source=%s: %s", source_name, result)
                 source_totals[source_name] = 0
                 continue
             source_totals[source_name] = int(cast(int, result))
             successful_sources.add(source_name)
 
-        total_count = sum(source_totals[source_name] for source_name in successful_sources)
+        total_count = sum(source_totals.values())  # failed sources already zeroed above
         return CountPhaseResult(
             source_totals=source_totals,
             successful_sources=successful_sources,
@@ -281,11 +281,12 @@ class SearchService:
         deadline: float,
         warnings: list[str],
     ) -> RowPhaseResult:
-        source_names = [
-            name
-            for name, _ in SOURCES.items()
-            if name in successful_sources and source_totals.get(name, 0) > 0
+        eligible = [
+            (source_name, source_config)
+            for source_name, source_config in SOURCES.items()
+            if source_name in successful_sources and source_totals.get(source_name, 0) > 0
         ]
+        source_names = [name for name, _ in eligible]
         row_tasks = [
             self._socrata_client.query_source_rows(
                 source_name,
@@ -294,8 +295,7 @@ class SearchService:
                 min(rows_limit, source_totals[source_name]),
                 deadline=deadline,
             )
-            for source_name, source_config in SOURCES.items()
-            if source_name in successful_sources and source_totals.get(source_name, 0) > 0
+            for source_name, source_config in eligible
         ]
         row_results = await asyncio.gather(*row_tasks, return_exceptions=True)
 
@@ -303,8 +303,12 @@ class SearchService:
         available_source_totals: SourceTotals = {}
         for source_name, result in zip(source_names, row_results, strict=False):
             if isinstance(result, BaseException):
-                warnings.append(f"No se pudieron recuperar filas de {source_name}.")
-                logger.error("Error loading rows for source=%s: %s", source_name, result)
+                if isinstance(result, CircuitOpenError):
+                    warnings.append(f"{source_name} temporalmente no disponible (protección por sobrecarga).")
+                    logger.warning("Circuit open for source=%s during rows phase", source_name)
+                else:
+                    warnings.append(f"No se pudieron recuperar filas de {source_name}.")
+                    logger.error("Error loading rows for source=%s: %s", source_name, result)
                 continue
             frame = cast(pd.DataFrame, result)
             if frame.empty:
