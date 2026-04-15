@@ -80,10 +80,15 @@ def format_currency_value(value: float) -> str:
 
 
 def build_results_view(final_df: pd.DataFrame) -> pd.DataFrame:
-    df_view = final_df.copy()
+    relevant_columns = [column for column in DISPLAY_COLUMNS if column in final_df.columns]
+    source_columns = list(relevant_columns)
+    if "valor" in final_df.columns and "valor" not in source_columns:
+        source_columns.append("valor")
+    df_view = final_df[source_columns].copy()
     if "valor" in df_view.columns:
-        df_view["valor"] = pd.to_numeric(df_view["valor"], errors="coerce").fillna(0)
-        df_view["Valor (COP)"] = df_view["valor"].apply(format_currency_value)
+        numeric_valor = pd.to_numeric(df_view["valor"], errors="coerce").fillna(0)
+        df_view["valor"] = numeric_valor
+        df_view["Valor (COP)"] = numeric_valor.map(format_currency_value)
 
     valid_columns = [column for column in DISPLAY_COLUMNS if column in df_view.columns]
     df_view = df_view[valid_columns].rename(columns=DISPLAY_COLUMNS)
@@ -100,10 +105,25 @@ def build_page_dataframe(df_view: pd.DataFrame, safe_page: int) -> pd.DataFrame:
     return df_page
 
 
+_HTML_ESCAPE_MAP = {
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#x27;",
+}
+
+
 def escape_object_columns(df_page: pd.DataFrame) -> None:
     for column in df_page.columns:
         if df_page[column].dtype == object:
-            df_page[column] = df_page[column].astype(str).apply(html.escape)
+            series = df_page[column].astype(str)
+            series = series.str.replace("&", "&amp;", regex=False)
+            series = series.str.replace("<", "&lt;", regex=False)
+            series = series.str.replace(">", "&gt;", regex=False)
+            series = series.str.replace('"', "&quot;", regex=False)
+            series = series.str.replace("'", "&#x27;", regex=False)
+            df_page[column] = series
 
 
 def extract_clean_url(value: Any) -> str:
@@ -125,8 +145,8 @@ def add_link_column(df_page: pd.DataFrame, final_df: pd.DataFrame) -> None:
     if "url" not in final_df.columns:
         return
 
-    urls = final_df.loc[df_page.index, "url"].apply(extract_clean_url)
-    df_page["Enlace"] = urls.apply(
+    urls = final_df.loc[df_page.index, "url"].map(extract_clean_url)
+    df_page["Enlace"] = urls.map(
         lambda url: (
             f'<a href="{html.escape(url)}" target="_blank" rel="noopener noreferrer" '
             f'class="btn btn-sm btn-outline-primary">Ver</a>'

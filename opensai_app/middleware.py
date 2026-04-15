@@ -11,6 +11,9 @@ from .observability import logger, record_http_request
 from .security import build_csp_header
 
 
+_SILENT_PATHS = {"/healthz", "/healthz/upstream", "/metrics", "/favicon.ico"}
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request.state.csp_nonce = secrets.token_urlsafe(16)
@@ -33,15 +36,17 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         elapsed_seconds = time.perf_counter() - started_at
         elapsed_ms = elapsed_seconds * 1000
         response.headers["X-Request-ID"] = request_id
-        record_http_request(request.method, request.url.path, response.status_code, elapsed_seconds)
-        logger.info(
-            "request_id=%s method=%s path=%s status=%s latency_ms=%.2f",
-            request_id,
-            request.method,
-            request.url.path,
-            response.status_code,
-            elapsed_ms,
-        )
+        path = request.url.path
+        if path not in _SILENT_PATHS:
+            record_http_request(request.method, path, response.status_code, elapsed_seconds)
+            logger.info(
+                "request_id=%s method=%s path=%s status=%s latency_ms=%.2f",
+                request_id,
+                request.method,
+                path,
+                response.status_code,
+                elapsed_ms,
+            )
         return response
 
 
