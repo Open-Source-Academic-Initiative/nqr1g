@@ -16,6 +16,7 @@ class IndexTemplateContext(TypedDict):
     request: Request
     csp_nonce: str
     public_base_url: str
+    ga4_measurement_id: str
     c_val: str
     y_val: int
     current_year: int
@@ -43,6 +44,7 @@ def build_index_context(request: Request, execution: SearchExecution) -> IndexTe
         "request": request,
         "csp_nonce": getattr(request.state, "csp_nonce", ""),
         "public_base_url": resolve_public_base_url(request),
+        "ga4_measurement_id": settings.ga4_measurement_id,
         "c_val": execution.contractor or "",
         "y_val": execution.year,
         "current_year": execution.current_year,

@@ -3,6 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% if ga4_measurement_id %}
+    <!-- Google Analytics 4 (gtag.js) -->
+    <script nonce="{{ csp_nonce }}" async src="https://www.googletagmanager.com/gtag/js?id={{ ga4_measurement_id }}"></script>
+    <script nonce="{{ csp_nonce }}">
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', '{{ ga4_measurement_id }}');
+    </script>
+    {% endif %}
     <meta name="description" content="Consulta de contratación pública SECOP integrada con datos.gov.co para buscar contratos por contratista y año.">
     <meta name="robots" content="{% if c_val %}noindex,follow{% else %}index,follow{% endif %}">
     <meta name="author" content="OpenSAI">
