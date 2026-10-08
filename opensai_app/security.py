@@ -11,13 +11,22 @@ from .observability import logger
 
 
 def build_csp_header(nonce: str) -> str:
+    # When GA4 is enabled, allow gtag.js (script-src) and its measurement beacons (connect-src).
+    ga4_enabled = bool(settings.ga4_measurement_id)
+    script_ga4 = " https://www.googletagmanager.com" if ga4_enabled else ""
+    connect_ga4 = (
+        " https://www.googletagmanager.com https://www.google-analytics.com"
+        " https://*.google-analytics.com https://*.analytics.google.com"
+        if ga4_enabled
+        else ""
+    )
     base = (
         "default-src 'self'; "
-        f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net; "
+        f"script-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net{script_ga4}; "
         f"style-src 'self' 'nonce-{nonce}' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; "
         "font-src 'self' https://cdnjs.cloudflare.com; "
         "img-src 'self' data: https:; "
-        "connect-src 'self' https://www.datos.gov.co; "
+        f"connect-src 'self' https://www.datos.gov.co{connect_ga4}; "
         "base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self';"
     )
     return base

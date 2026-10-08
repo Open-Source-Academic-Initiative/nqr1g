@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -109,6 +110,7 @@ class AppSettings:
     strict_security_mode: bool
     cors_allow_origins: list[str]
     public_base_url_raw: str
+    ga4_measurement_id: str
     templates_directory: str
     static_directory: str
     timeout_cap_seconds: float
@@ -301,6 +303,26 @@ def _load_throttle_settings() -> ThrottleSettings:
     )
 
 
+_GA4_MEASUREMENT_ID_RE = re.compile(r"^G-[A-Z0-9]{4,12}$")
+
+# GA4 (gtag.js) measurement ID. It is a public, client-side identifier (rendered into the page
+# for every visitor), so it is safe to keep in source. Defaults to the OpenSAI GA4 property;
+# override per environment with GA4_MEASUREMENT_ID, or set it to "" / "off" to disable analytics
+# entirely (e.g. in local development, to avoid polluting the property with test traffic).
+_DEFAULT_GA4_MEASUREMENT_ID = "G-LT6N15C8NF"
+
+
+def _resolve_ga4_measurement_id() -> str:
+    raw = os.getenv("GA4_MEASUREMENT_ID")
+    candidate = _DEFAULT_GA4_MEASUREMENT_ID if raw is None else raw.strip()
+    if candidate.lower() in {"", "off", "false", "no", "none", "disabled"}:
+        return ""
+    if not _GA4_MEASUREMENT_ID_RE.match(candidate):
+        logger.warning("Invalid GA4_MEASUREMENT_ID=%r, disabling analytics", candidate)
+        return ""
+    return candidate
+
+
 def load_settings() -> AppSettings:
     timeout_cap_seconds = 120.0
     app_env = os.getenv("APP_ENV", "development").strip().lower()
@@ -312,6 +334,7 @@ def load_settings() -> AppSettings:
         strict_security_mode=strict_security_mode,
         cors_allow_origins=_resolve_cors_allow_origins(strict_security_mode),
         public_base_url_raw=os.getenv("PUBLIC_BASE_URL", "").strip(),
+        ga4_measurement_id=_resolve_ga4_measurement_id(),
         templates_directory=templates_directory,
         static_directory=str(Path(__file__).resolve().parent.parent / "static"),
         timeout_cap_seconds=timeout_cap_seconds,

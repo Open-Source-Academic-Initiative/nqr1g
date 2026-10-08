@@ -1,0 +1,24 @@
+[Unit]
+Description=OpenSAI nqr1g Container (Rootless)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Environment=PODMAN_SYSTEMD_UNIT=%n
+Restart=on-failure
+TimeoutStartSec=70
+ExecStartPre=/usr/bin/podman pull ghcr.io/${GITHUB_REPOSITORY_OWNER}/nqr1g:latest
+ExecStartPre=-/usr/bin/podman stop %n
+ExecStartPre=-/usr/bin/podman rm %n
+ExecStart=/usr/bin/podman run \
+    --name %n \
+    --replace \
+    -p 5000:5000 \
+    ghcr.io/${GITHUB_REPOSITORY_OWNER}/nqr1g:latest
+ExecStop=/usr/bin/podman stop -t 10 %n
+ExecStopPost=/usr/bin/podman rm -f %n
+Type=notify
+NotifyAccess=all
+
+[Install]
+WantedBy=default.target
