@@ -1,6 +1,8 @@
 import asyncio
 import random
 import time
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -91,7 +93,6 @@ class SocrataClient:
         )
         self._health_cache: dict[str, Any] = {"checked_at": 0.0, "ok": True, "reason": "not_checked"}
         self._health_lock = asyncio.Lock()
-        self._rows_use_flat_url: dict[str, bool] = {}
         self._breakers: dict[str, _CircuitBreaker] = {}
 
     def _breaker_for(self, source_name: str) -> _CircuitBreaker:
@@ -122,8 +123,12 @@ class SocrataClient:
             retry_after = response.headers.get("Retry-After")
             if retry_after:
                 try:
-                    return min(float(retry_after), settings.socrata.retry_after_hard_cap_seconds)
-                except ValueError:
+                    if retry_after.strip().isdigit():
+                        return float(retry_after)
+                    retry_date = parsedate_to_datetime(retry_after)
+                    if retry_date.tzinfo is not None:
+                        return max(0.0, (retry_date - datetime.now(timezone.utc)).total_seconds())
+                except (ValueError, TypeError, OverflowError):
                     pass
         backoff = settings.socrata.retry_base_seconds * (2 ** attempt)
         jitter = random.uniform(0, 0.3)
@@ -207,10 +212,10 @@ class SocrataClient:
                 ):
                     _breaker_mark_failure(breaker, source_name)
                     delay = self.compute_retry_delay(response, attempt)
-                    delay = min(delay, max(0.0, remaining_budget_seconds(call_deadline) - 0.05))
-                    if delay <= 0:
+                    remaining = remaining_budget_seconds(call_deadline)
+                    if delay > settings.socrata.retry_after_hard_cap_seconds or delay >= remaining - 0.05:
                         raise RequestBudgetExceeded(
-                            f"Budget exhausted while retrying source {source_name}"
+                            f"La espera de reintento excede el presupuesto de {source_name}"
                         )
                     logger.warning(
                         "Transient Socrata status source=%s status=%s request_id=%s retry_in=%.2fs attempt=%s/%s",
@@ -223,6 +228,12 @@ class SocrataClient:
                     )
                     await asyncio.sleep(delay)
                     continue
+                if response.status_code == 202:
+                    raise httpx.HTTPStatusError(
+                        "Socrata sigue procesando la consulta tras agotar los intentos.",
+                        request=response.request,
+                        response=response,
+                    )
                 response.raise_for_status()
                 breaker.on_success()
                 logger.info(
@@ -309,19 +320,8 @@ class SocrataClient:
             return pd.DataFrame()
 
         endpoint = f"https://www.datos.gov.co/resource/{source_config.dataset_id}.json"
-        dataset_id = source_config.dataset_id
-        use_nested = not self._rows_use_flat_url.get(dataset_id, False)
-        try:
-            params = self._build_rows_params(source_config.cols, where_clause, limit, use_nested_url=use_nested)
-            response = await self.soda_get(endpoint, params, f"{source_name}:rows", deadline=deadline)
-        except httpx.HTTPStatusError as exc:
-            if use_nested and exc.response is not None and exc.response.status_code == 400:
-                logger.warning("Fallback to plain URL column for source=%s (cached)", source_name)
-                self._rows_use_flat_url[dataset_id] = True
-                params = self._build_rows_params(source_config.cols, where_clause, limit, use_nested_url=False)
-                response = await self.soda_get(endpoint, params, f"{source_name}:rows:fallback", deadline=deadline)
-            else:
-                raise
+        params = self._build_rows_params(source_config.cols, where_clause, limit)
+        response = await self.soda_get(endpoint, params, f"{source_name}:rows", deadline=deadline)
 
         data = response.json()
         if not data:
@@ -335,9 +335,7 @@ class SocrataClient:
         col_map: dict[str, str],
         where_clause: str,
         limit: int,
-        use_nested_url: bool = True,
     ) -> dict[str, Any]:
-        url_expr = f"{col_map['url']}.url" if use_nested_url else col_map["url"]
         select_fields = [
             f"{col_map['id_contrato']} as id_contrato",
             f"{col_map['entidad']} as entidad",
@@ -345,7 +343,7 @@ class SocrataClient:
             f"{col_map['valor']} as valor",
             f"{col_map['contratista']} as contratista",
             f"{col_map['fecha']} as fecha",
-            f"{url_expr} as url",
+            f"{col_map['url']} as url",
             ":id as row_id",
         ]
         return {
