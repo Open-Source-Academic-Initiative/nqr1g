@@ -161,7 +161,7 @@ SOURCES = {
             "valor": "valor_del_contrato",
             "contratista": "proveedor_adjudicado",
             "fecha": "fecha_de_firma",
-            "url": "urlproceso",
+            "url": "urlproceso.url",
         },
     ),
 }
