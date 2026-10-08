@@ -117,6 +117,13 @@ def build_where_clause(col_map: dict[str, str], contractor: str, year: int) -> s
     )
 
 
+def build_source_where_clause(source_name: str, col_map: dict[str, str], contractor: str, year: int) -> str:
+    where_clause = build_where_clause(col_map, contractor, year)
+    if source_name == "SECOP_I":
+        return f"({where_clause}) AND origen = 'SECOPI'"
+    return where_clause
+
+
 def validate_search_inputs(contractor: str, year: int, current_year: int) -> str:
     cleaned_contractor = clean_input(contractor)
     if len(cleaned_contractor) < 3:
@@ -242,7 +249,7 @@ class SearchService:
             self._socrata_client.query_source_count(
                 source_name,
                 source_config,
-                build_where_clause(source_config.cols, contractor, year),
+                build_source_where_clause(source_name, source_config.cols, contractor, year),
                 deadline=deadline,
             )
             for source_name, source_config in SOURCES.items()
@@ -291,7 +298,7 @@ class SearchService:
             self._socrata_client.query_source_rows(
                 source_name,
                 source_config,
-                build_where_clause(source_config.cols, contractor, year),
+                build_source_where_clause(source_name, source_config.cols, contractor, year),
                 min(rows_limit, source_totals[source_name]),
                 deadline=deadline,
             )
